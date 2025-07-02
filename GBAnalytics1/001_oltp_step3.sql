@@ -1,0 +1,2 @@
+--step3 create actual OLTP tables by using BIG temp tables as base from xxxx_step3
+--

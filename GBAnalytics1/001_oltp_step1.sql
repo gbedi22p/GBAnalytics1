@@ -1,0 +1,344 @@
+--generate the base temp table for all the operations
+
+Use FoodTrainOLTP
+--CREATE DATABASE FoodTrainOLTP
+
+
+SET NOCOUNT ON
+Use FoodTrainOLTP
+
+DROP TABLE IF EXISTS ##SC_TEMP_TABLE
+CREATE TABLE ##SC_TEMP_TABLE
+(
+	val NVARCHAR(10)
+)
+INSERT INTO ##SC_TEMP_TABLE (val)
+VALUES('b'), ('c'), ('d'), ('f'), ('g'), ('h'), ('j'), ('k'), ('m'), ('n'), ('p'), ('r'), ('s'), ('t'), ('v'), ('w'), ('y'), ('z'), ('bl'), ('br'), ('ch'), ('cl'), ('cr'), ('dr'), ('fl'), ('fr'), ('gh'), ('gl'), ('gn'), ('gr'), ('kn'), ('ph'), ('pl'), ('pr'), ('qu'), ('sc'), ('sh'), ('sk'), ('sl'), ('sm'), ('sn'), ('sp'), ('st'), ('th'), ('tr'), ('wh'), ('wr'), ('sch'), ('scr'), ('shm'), ('shr'), ('squ'), ('str'), ('thr')
+
+DROP TABLE IF EXISTS ##SC_TEMP_TABLE2
+CREATE TABLE ##SC_TEMP_TABLE2
+(
+	val NVARCHAR(10)
+)
+DECLARE @SCSubset SMALLINT = ABS(CHECKSUM(NEWID())) % (SELECT COUNT(*) FROM ##SC_TEMP_TABLE)
+IF @SCSubSet < (SELECT COUNT(*) FROM ##SC_TEMP_TABLE) / 2
+	SET @SCSubSet = (SELECT COUNT(*) FROM ##SC_TEMP_TABLE) / 2
+INSERT INTO ##SC_TEMP_TABLE2
+	SELECT TOP(@SCSubset) val FROM ##SC_TEMP_TABLE ORDER BY NEWID()
+
+DROP TABLE IF EXISTS ##V_TEMP_TABLE
+CREATE TABLE ##V_TEMP_TABLE
+(
+    val NVARCHAR(10)
+)
+INSERT INTO ##V_TEMP_TABLE (val)
+VALUES('a'), ('e'), ('i'), ('o'), ('u'), ('ae'), ('ai'), ('ao'), ('au'), ('ea'), ('ee'), ('ei'), ('eu'), ('ia'), ('ie'), ('io'), ('oa'), ('oe'), ('oi'), ('oo'), ('ou'), ('ue'), ('ui')
+
+DROP TABLE IF EXISTS ##V_TEMP_TABLE2
+CREATE TABLE ##V_TEMP_TABLE2
+(
+	val NVARCHAR(10)
+)
+DECLARE @VSubset SMALLINT = ABS(CHECKSUM(NEWID())) % (SELECT COUNT(*) FROM ##V_TEMP_TABLE)
+IF @VSubSet < (SELECT COUNT(*) FROM ##V_TEMP_TABLE) / 2
+	SET @VSubSet = (SELECT COUNT(*) FROM ##V_TEMP_TABLE) / 2
+INSERT INTO ##V_TEMP_TABLE2
+	SELECT TOP(@VSubset) val FROM ##V_TEMP_TABLE ORDER BY NEWID()
+
+DROP TABLE IF EXISTS ##EC_TEMP_TABLE
+CREATE TABLE ##EC_TEMP_TABLE
+(
+    val NVARCHAR(10)
+)
+INSERT INTO ##EC_TEMP_TABLE (val)
+VALUES('b'), ('c'), ('d'), ('f'), ('g'), ('l'), ('m'), ('n'), ('p'), ('r'), ('s'), ('t'), ('x'), ('z'), ('bt'), ('ch'), ('ck'), ('ct'), ('ft'), ('gh'), ('gn'), ('lb'), ('ld'), ('lf'), ('lk'), ('ll'), ('lm'), ('ln'), ('lp'), ('lt'), ('mb'), ('mn'), ('mp'), ('nk'), ('nk'), ('ng'), ('nt'), ('ph'), ('pt'), ('rb'), ('rc'), ('rd'), ('rf'), ('rg'), ('rk'), ('rl'), ('rm'), ('rn'), ('rp'), ('rt'), ('rv'), ('rz'), ('sh'), ('sk'), ('sp'), ('ss'), ('st'), ('zz'), ('lch'), ('lsh'), ('lth'), ('rch'), ('rsh'), ('rst'), ('rth'), ('sch'), ('tch')
+
+DROP TABLE IF EXISTS ##EC_TEMP_TABLE2
+CREATE TABLE ##EC_TEMP_TABLE2
+(
+	val NVARCHAR(10)
+)
+DECLARE @ECSubset SMALLINT = ABS(CHECKSUM(NEWID())) % (SELECT COUNT(*) FROM ##EC_TEMP_TABLE)
+IF @ECSubSet < (SELECT COUNT(*) FROM ##EC_TEMP_TABLE) / 2
+	SET @ECSubSet = (SELECT COUNT(*) FROM ##EC_TEMP_TABLE) / 2
+INSERT INTO ##EC_TEMP_TABLE2
+	SELECT TOP(@ECSubset) val FROM ##EC_TEMP_TABLE ORDER BY NEWID()
+
+SELECT val
+FROM ##SC_TEMP_TABLE
+SELECT val
+FROM ##V_TEMP_TABLE
+SELECT val
+FROM ##EC_TEMP_TABLE
+SELECT val
+FROM ##SC_TEMP_TABLE2
+SELECT val
+FROM ##V_TEMP_TABLE2
+SELECT val
+FROM ##EC_TEMP_TABLE2
+
+DROP TABLE IF EXISTS ##TEMP_WORDS_TABLE
+CREATE TABLE ##TEMP_WORDS_TABLE
+(
+	id INT,
+    val NVARCHAR(100)
+)
+DELETE FROM ##TEMP_WORDS_TABLE
+INSERT INTO ##TEMP_WORDS_TABLE
+	SELECT TOP(83000) ROW_NUMBER() OVER (Order by sc.val), 
+				        CONCAT(sc.val, v.val, ec.val) AS val2 FROM
+						##SC_TEMP_TABLE sc CROSS JOIN
+						##V_TEMP_TABLE v CROSS JOIN
+						##EC_TEMP_TABLE ec
+
+--todo gkb:  look into setting up an index if using dynamic sql
+DROP INDEX IF EXISTS CCI_TEMP_WORDS_TABLE ON ##TEMP_WORDS_TABLE
+CREATE CLUSTERED INDEX CCI_TEMP_WORDS_TABLE
+ON ##TEMP_WORDS_TABLE(id)
+SELECT * FROM ##TEMP_WORDS_TABLE ORDER BY id
+SELECT TOP(1) val FROM ##TEMP_WORDS_TABLE ORDER BY NEWID();
+
+--todo gkb:  if we are going to generate the data here in .sql files 
+--           we might need to create following temp tables
+DROP TABLE IF EXISTS ##TEMP_SINGLE_INT_TABLE
+CREATE TABLE ##TEMP_SINGLE_INT_TABLE
+(
+	id INT,
+	val INT
+)
+INSERT INTO ##TEMP_SINGLE_INT_TABLE(id, val) VALUES(1, '0'), (2, '1'), (3, '2'), (4, '3'), (5, '4'), (6, '5'), (7, '6'), (8, '7'), (9, '8'), (10, '9')
+SELECT TOP(1) val FROM ##TEMP_SINGLE_INT_TABLE ORDER BY NEWID();
+
+--SELECT CONCAT(q1.val, q2.val) FROM ##TEMP_SINGLE_INT_TABLE q1
+--CROSS JOIN ##TEMP_SINGLE_INT_TABLE q2
+
+DROP TABLE IF EXISTS ##TEMP_INT_TABLE
+CREATE TABLE ##TEMP_INT_TABLE
+(
+	id INT,
+	val INT,
+	num_digits INT
+)
+--TRUNCATE TABLE ##TEMP_INT_TABLE
+INSERT INTO ##TEMP_INT_TABLE(val, num_digits)
+	SELECT CONCAT(q1.val, q2.val, q3.val, q4.val, q5.val) as val
+	,5 as num_digits
+	FROM ##TEMP_SINGLE_INT_TABLE q1
+	CROSS JOIN ##TEMP_SINGLE_INT_TABLE q2
+	CROSS JOIN ##TEMP_SINGLE_INT_TABLE q3
+	CROSS JOIN ##TEMP_SINGLE_INT_TABLE q4
+	CROSS JOIN ##TEMP_SINGLE_INT_TABLE q5
+	where q1.val <> 0
+--SELECT TOP(100) * FROM ##TEMP_INT_TABLE where num_digits=5
+INSERT INTO ##TEMP_INT_TABLE(val, num_digits)
+	SELECT CONCAT(q1.val, q2.val, q3.val, q4.val) as val
+	,4 as num_digits
+	FROM ##TEMP_SINGLE_INT_TABLE q1
+	CROSS JOIN ##TEMP_SINGLE_INT_TABLE q2
+	CROSS JOIN ##TEMP_SINGLE_INT_TABLE q3
+	CROSS JOIN ##TEMP_SINGLE_INT_TABLE q4
+	WHERE q1.val <> 0
+--SELECT * FROM ##TEMP_INT_TABLE where num_digits=4
+INSERT INTO ##TEMP_INT_TABLE(val, num_digits)
+	SELECT CONCAT(q1.val, q2.val, q3.val) as val
+	,3 as num_digits
+	FROM ##TEMP_SINGLE_INT_TABLE q1
+	CROSS JOIN ##TEMP_SINGLE_INT_TABLE q2
+	CROSS JOIN ##TEMP_SINGLE_INT_TABLE q3
+	WHERE q1.val <> 0
+--SELECT * FROM ##TEMP_INT_TABLE where num_digits=3
+INSERT INTO ##TEMP_INT_TABLE(val, num_digits)
+	SELECT CONCAT(q1.val, q2.val) as val
+	,2 as num_digits
+	FROM ##TEMP_SINGLE_INT_TABLE q1
+	CROSS JOIN ##TEMP_SINGLE_INT_TABLE q2
+	WHERE q1.val <> 0
+--SELECT * FROM ##TEMP_INT_TABLE where num_digits=2
+INSERT INTO ##TEMP_INT_TABLE(val, num_digits)
+	SELECT q1.val as val
+	,1 as num_digits
+	FROM ##TEMP_SINGLE_INT_TABLE q1
+	WHERE q1.val <> 0
+SELECT * FROM ##TEMP_INT_TABLE where num_digits=1
+
+SELECT TOP(1000) * FROM ##TEMP_INT_TABLE ORDER BY NEWID()
+--use temporary variable to assign unique sequential ids after initial table creation above
+DECLARE @tempSingleIntTable TABLE (id INT, val NVARCHAR(50), num_digits INT)
+INSERT INTO @tempSingleIntTable(id, val, num_digits)
+	SELECT * FROM ##TEMP_INT_TABLE
+TRUNCATE TABLE ##TEMP_INT_TABLE
+INSERT INTO ##TEMP_INT_TABLE(id, val, num_digits)	
+	SELECT ROW_NUMBER() OVER (Order By val), val, num_digits FROM @tempSingleIntTable
+SELECT * FROM ##TEMP_INT_TABLE ORDER BY id
+DROP INDEX IF EXISTS CCI_TEMP_INT_TABLE ON ##TEMP_INT_TABLE
+CREATE CLUSTERED INDEX CCI_TEMP_INT_TABLE
+ON ##TEMP_INT_TABLE(id)
+
+DROP TABLE IF EXISTS ##TEMP_FLOAT_TABLE
+CREATE TABLE ##TEMP_FLOAT_TABLE
+(
+	id INT,
+	val FLOAT,
+	num_digits INT
+)
+INSERT INTO ##TEMP_FLOAT_TABLE(id, val, num_digits)
+	SELECT ROW_NUMBER() OVER (Order by subq.val), CONCAT(subq.val, '.', fpart.val), subq.num_digits FROM 
+	(SELECT val, num_digits FROM ##TEMP_INT_TABLE WHERE val <= 1000) subq
+	CROSS JOIN ##TEMP_SINGLE_INT_TABLE fpart
+	WHERE fpart.val = 0 OR fpart.val = 3 OR fpart.val = 7
+	
+SELECT * FROM ##TEMP_FLOAT_TABLE 
+--WHERE num_digits >= 2 AND num_digits <= 4
+ORDER BY id
+DROP INDEX IF EXISTS CCI_TEMP_FLOAT_TABLE ON ##TEMP_FLOAT_TABLE
+CREATE CLUSTERED INDEX CCI_TEMP_FLOAT_TABLE
+ON ##TEMP_FLOAT_TABLE(id)
+
+--TRUNCATE TABLE ##TEMP_PHONE_NO_TABLE
+DROP TABLE IF EXISTS ##TEMP_PHONE_NO_TABLE
+CREATE TABLE ##TEMP_PHONE_NO_TABLE
+(
+	id INT,
+	phone_no NVARCHAR(25),
+	country_code NVARCHAR(5)
+)
+--CROSS APPLY is useful when there isnt an obvious JOIN condition
+INSERT INTO ##TEMP_PHONE_NO_TABLE(id, phone_no, country_code)
+	SELECT ROW_NUMBER() OVER (Order by subq.val), CONCAT(subq.val, '-', subq2.val, '-', subq3.val), '+05'
+	FROM ##TEMP_INT_TABLE subq
+	CROSS APPLY 
+	(SELECT TOP(7) val FROM ##TEMP_INT_TABLE WHERE num_digits=3 ORDER BY NEWID()) subq2
+	CROSS APPLY
+	(SELECT TOP(5) val FROM ##TEMP_INT_TABLE WHERE num_digits=4 ORDER BY NEWID()) subq3
+	WHERE num_digits=3
+	ORDER BY NEWID()
+SELECT TOP(10000) * FROM ##TEMP_PHONE_NO_TABLE
+DROP INDEX IF EXISTS CCI_TEMP_PHONE_NO_TABLE ON ##TEMP_PHONE_NO_TABLE
+CREATE CLUSTERED INDEX CCI_TEMP_PHONE_NO_TABLE
+ON ##TEMP_PHONE_NO_TABLE(id)
+
+--todo:  think about adding create an index for these tables.....?
+DROP TABLE IF EXISTS ##TEMP_EMAIL_TABLE
+CREATE TABLE ##TEMP_EMAIL_TABLE
+(
+	id INT,
+	email NVARCHAR(75)
+)
+INSERT INTO ##TEMP_EMAIL_TABLE(id, email)
+	SELECT ROW_NUMBER() OVER (Order By subq.val), CONCAT(subq.val, '@', subq2.val, '.com')
+	FROM ##TEMP_WORDS_TABLE subq
+	CROSS APPLY
+	(SELECT TOP(25) val FROM ##TEMP_WORDS_TABLE ORDER BY NEWID()) subq2
+SELECT * FROM ##TEMP_EMAIL_TABLE
+DROP INDEX IF EXISTS CCI_TEMP_EMAIL_TABLE ON ##TEMP_EMAIL_TABLE
+CREATE CLUSTERED INDEX CCI_TEMP_EMAIL_TABLE
+ON ##TEMP_EMAIL_TABLE(id)
+
+DROP TABLE IF EXISTS ##TEMP_STATE_TABLE
+CREATE TABLE ##TEMP_STATE_TABLE
+(
+	id INT,
+	state NVARCHAR(50)
+)
+INSERT INTO ##TEMP_STATE_TABLE(id, state)
+	SELECT TOP(50) ROW_NUMBER() OVER (Order By subq.val), CONCAT(subq.val, subq2.val)
+	FROM ##TEMP_WORDS_TABLE subq
+	CROSS APPLY
+	(SELECT TOP(10) val FROM ##TEMP_WORDS_TABLE ORDER BY NEWID()) subq2
+SELECT * FROM ##TEMP_STATE_TABLE
+DROP INDEX IF EXISTS CCI_TEMP_STATE_TABLE ON ##TEMP_STATE_TABLE
+CREATE CLUSTERED INDEX CCI_TEMP_STATE_TABLE
+ON ##TEMP_STATE_TABLE(id)
+
+DROP TABLE IF EXISTS ##TEMP_CITY_TABLE
+CREATE TABLE ##TEMP_CITY_TABLE
+(
+	id INT,
+	city NVARCHAR(50)
+)
+INSERT INTO ##TEMP_CITY_TABLE(id, city)
+	SELECT TOP(2000) ROW_NUMBER() OVER (Order by subq.val), CONCAT(subq.val, subq2.val, ' ', subq3.val)
+	FROM ##TEMP_WORDS_TABLE subq
+	CROSS APPLY
+	(SELECT TOP(10) val FROM ##TEMP_WORDS_TABLE ORDER BY NEWID()) subq2
+	CROSS APPLY 
+	(SELECT TOP(250) val FROM ##TEMP_WORDS_TABLE ORDER BY NEWID()) subq3
+SELECT * FROM ##TEMP_CITY_TABLE
+DROP INDEX IF EXISTS CCI_TEMP_CITY_TABLE ON ##TEMP_CITY_TABLE
+CREATE CLUSTERED INDEX CCI_TEMP_CITY_TABLE
+ON ##TEMP_CITY_TABLE(id)
+
+DROP TABLE IF EXISTS ##TEMP_ZIP_TABLE
+CREATE TABLE ##TEMP_ZIP_TABLE
+(
+	id INT,
+	zip_code INT
+)
+--use temp table so that the ordering of the rows will be only on new zip data and not the source table TEMP_INT_TABLE
+--note to self:  isn't there a better way of doing this..?
+DECLARE @tempZipTable TABLE(id INT, zip_code INT)
+INSERT INTO @tempZipTable(id, zip_code)
+	SELECT TOP(30000) 0, val FROM ##TEMP_INT_TABLE WHERE num_digits=5 ORDER BY NEWID() 
+
+INSERT INTO ##TEMP_ZIP_TABLE(id, zip_code)
+	SELECT ROW_NUMBER() OVER (Order by NEWID()), zip_code FROM @tempZipTable
+
+SELECT * FROM ##TEMP_ZIP_TABLE ORDER By id
+DROP INDEX IF EXISTS CCI_TEMP_ZIP_TABLE ON ##TEMP_ZIP_TABLE
+CREATE CLUSTERED INDEX CCI_TEMP_ZIP_TABLE
+ON ##TEMP_ZIP_TABLE(id)
+
+DROP TABLE IF EXISTS ##TEMP_DATE_TABLE
+CREATE TABLE ##TEMP_DATE_TABLE
+(
+	id INT,
+	val DATE
+)
+INSERT INTO ##TEMP_DATE_TABLE(id, val)
+	SELECT TOP(150000) ROW_NUMBER() OVER (Order By NEWID()), DATEADD(DAY, 
+  	                                                    RAND(CHECKSUM(NEWID())) * (1 + DATEDIFF(DAY,
+																						   '01/01/2016',
+																						   '08/31/2025'
+																					      )
+																			),
+   													   '01/01/2016')
+	FROM ##TEMP_INT_TABLE
+	WHERE num_digits > 3
+SELECT TOP(5000) * FROM ##TEMP_DATE_TABLE ORDER BY val
+
+DROP TABLE IF EXISTS ##TEMP_DATETIME_TABLE
+CREATE TABLE ##TEMP_DATETIME_TABLE
+(
+	id INT,
+	val DATETIME
+)
+INSERT INTO ##TEMP_DATETIME_TABLE(id, val)
+	SELECT TOP(150000) ROW_NUMBER() OVER (Order By NEWID()), DATEADD(HOUR, CHECKSUM(NEWID()) % 24, CAST(val as DATETIME))
+	FROM ##TEMP_DATE_TABLE
+SELECT * FROM ##TEMP_DATETIME_TABLE
+
+
+SELECT COUNT(*) AS NumCities FROM ##TEMP_CITY_TABLE
+SELECT COUNT(*) AS NumEmails FROM ##TEMP_EMAIL_TABLE
+SELECT COUNT(*) AS NumFloats FROM ##TEMP_FLOAT_TABLE
+SELECT COUNT(*) AS NumInts FROM ##TEMP_INT_TABLE
+SELECT COUNT(*) AS NumPhones FROM ##TEMP_PHONE_NO_TABLE
+SELECT COUNT(*) AS NumSingleInts FROM ##TEMP_SINGLE_INT_TABLE
+SELECT COUNT(*) AS NumStates FROM ##TEMP_STATE_TABLE
+SELECT COUNT(*) AS NumTempWords FROM ##TEMP_WORDS_TABLE
+SELECT COUNT(*) AS NumZips FROM ##TEMP_ZIP_TABLE
+SELECT COUNT(*) AS NumDates FROM ##TEMP_DATE_TABLE
+SELECT COUNT(*) AS NumDatetimes FROM ##TEMP_DATETIME_TABLE
+
+--todo: 6/11/25 maybe rewrite all of the code below and 
+--create a multi-line value function or an inline function (if no addl operations needed)
+--example of just concatting across tables based on an id to build the rows
+SELECT subq.id, subq.val, subq2.val, subq3.val, subq4.val
+FROM ##TEMP_WORDS_TABLE subq
+JOIN ##TEMP_INT_TABLE subq2 ON subq.id=subq2.id+1
+JOIN ##TEMP_FLOAT_TABLE subq3 ON subq.id=subq3.id+2
+JOIN ##TEMP_FLOAT_TABLE subq4 ON subq.id=subq4.id+3
+
+
+
+

@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# SQL Server Management Studio Solution File, Format Version 20.00
+VisualStudioVersion = 15.0.28307.421
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{4F2E2C19-372F-40D8-9FA7-9D2138C6997A}") = "GBAnalytics1", "GBAnalytics1\GBAnalytics1.ssmssqlproj", "{C4413BDD-7A3A-4FCA-83FB-77367F00B6B8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Default|Default = Default|Default
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C4413BDD-7A3A-4FCA-83FB-77367F00B6B8}.Default|Default.ActiveCfg = Default
+		{733A149F-A125-4BF2-B58E-9509C3B7C0C8}.Default|Default.ActiveCfg = Default
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {86835EFF-471D-499E-930B-7D73106E5180}
+	EndGlobalSection
+EndGlobal
