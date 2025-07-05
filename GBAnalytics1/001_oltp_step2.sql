@@ -3,6 +3,12 @@
 
 --DROP PROCEDURE IF EXISTS dbo.GENERATE_FINAL_TEMP_DATA_FOR_OLTP
 
+Use Resellers2ndHandStuffOLTP
+ALTER DATABASE SCOPED CONFIGURATION SET MAXDOP = 0
+SELECT [value] FROM sys.database_scoped_configurations WHERE [name] = 'MAXDOP';
+ALTER DATABASE SCOPED CONFIGURATION SET MAXDOP = 1
+SELECT [value] FROM sys.database_scoped_configurations WHERE [name] = 'MAXDOP';
+
 CREATE OR ALTER PROCEDURE dbo.GENERATE_FINAL_TEMP_DATA_FOR_OLTP
 WITH EXECUTE AS OWNER
 AS
@@ -22,13 +28,34 @@ BEGIN
 	--zips 1 table
 	--date 1 table
 	--datetime 1 table
-	DECLARE @BatchRowSize INT = 200000
+
+	DECLARE @BatchRowSize INT = 100000
 	DECLARE @ColCnt INT = 0
 	DECLARE @TotalColCnt INT = 0
 	DECLARE @LoopIdx INT = 0
 	DECLARE @LoopCnt INT = 0
 	DECLARE @TotalLoopCnt INT = 0
 	
+	DELETE FROM ##TEMP_ROWSET_CITIES
+	DELETE FROM ##TEMP_ROWSET_EMAILS
+	DELETE FROM ##TEMP_ROWSET_FLOATS_TINY
+	DELETE FROM ##TEMP_ROWSET_FLOATS_MED
+	DELETE FROM ##TEMP_ROWSET_FLOATS_LARGE
+	DELETE FROM ##TEMP_ROWSET_INTS_2_DIGITS
+	DELETE FROM ##TEMP_ROWSET_INTS_3_DIGITS
+	DELETE FROM ##TEMP_ROWSET_INTS_4_DIGITS
+	DELETE FROM ##TEMP_ROWSET_ALL_INTS
+	DELETE FROM ##TEMP_ROWSET_PHONE_NOS
+	DELETE FROM ##TEMP_ROWSET_SINGLE_INTS
+	DELETE FROM ##TEMP_ROWSET_STATES
+	DELETE FROM ##TEMP_ROWSET_TEMPWORDS
+	DELETE FROM ##TEMP_ROWSET_ZIPS
+	DELETE FROM ##TEMP_ROWSET_DATES
+	DELETE FROM ##TEMP_ROWSET_DATETIMES
+	DELETE FROM ##TEMP_ROWSET_BOOLS
+	DELETE FROM ##TEMP_ROWSET_URLS
+	
+	/*
 	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_CITY_TABLE)
 	SET @LoopIdx = 0
 	SET @TotalLoopCnt = 0
@@ -219,6 +246,24 @@ BEGIN
 	END
 	SELECT COUNT(*) AS Ints4Digits FROM ##TEMP_ROWSET_INTS_4_DIGITS
 	SELECT * FROM ##TEMP_ROWSET_INTS_4_DIGITS ORDER BY ID 
+	
+	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_INT_TABLE)
+	SET @LoopIdx = 0
+	SET @TotalLoopCnt = 0
+	TRUNCATE TABLE ##TEMP_ROWSET_ALL_INTS
+	WHILE @TotalLoopCnt < @BatchRowSize
+	BEGIN
+		SET @LoopCnt = @ColCnt / (CAST(100*RAND(CHECKSUM(NEWID())) AS INT) % 2 + 1)
+		INSERT INTO ##TEMP_ROWSET_ALL_INTS(id, val)
+			SELECT TOP(@LoopCnt) @TotalLoopCnt + id, val
+			FROM ##TEMP_INT_TABLE
+			ORDER BY id
+		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
+		SET @LoopIdx = @LoopIdx + 1
+	END
+	SELECT COUNT(*) AS IntsAll FROM ##TEMP_ROWSET_ALL_INTS
+	SELECT * FROM ##TEMP_ROWSET_ALL_INTS ORDER BY id
+
 
 	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_PHONE_NO_TABLE)
 	SET @LoopIdx = 0
@@ -235,33 +280,71 @@ BEGIN
 		SET @LoopIdx = @LoopIdx + 1
 	END
 	SELECT COUNT(*) AS PhoneNosCnt from ##TEMP_ROWSET_PHONE_NOS
-	SELECT * FROM ##TEMP_ROWSET_PHONE_NOS ORDER BY ID
+	SELECT * FROM ##TEMP_ROWSET_PHONE_NOS ORDER BY id
+	*/
+
+
+	SELECT [value] FROM sys.database_scoped_configurations WHERE [name] = 'MAXDOP';
+	DECLARE @BatchRowSize INT = 100000
+	DECLARE @ColCnt INT = 0
+	DECLARE @TotalColCnt INT = 0
+	DECLARE @LoopIdx INT = 0
+	DECLARE @LoopCnt INT = 0
+	DECLARE @TotalLoopCnt INT = 0
 
 	--need temporary table for states to do faster cross joins then looping and adding
-	DECLARE @tempStateTable TABLE(id INT, state NVARCHAR(50))
-	INSERT INTO @tempStateTable(id, state)
-		SELECT ROW_NUMBER() OVER (Order by NEWID()), q.state FROM ##TEMP_STATE_TABLE q
+	DECLARE @tempStateTable TABLE(id INT, state_val NVARCHAR(50))
+	INSERT INTO @tempStateTable(id, state_val)
+		SELECT 0, q.state_val FROM ##TEMP_STATE_TABLE q
 		CROSS APPLY (SELECT * FROM ##TEMP_STATE_TABLE) subq
 		CROSS APPLY (SELECT TOP(10) * FROM ##TEMP_STATE_TABLE) subq2
 	--SELECT * FROM @tempStateTable ORDER BY id
+	--SELECT COUNT(*) FROM @tempStateTable
 
+	--reorder the ids to be unique starting from 0
+	DELETE FROM ##TEMP_ROWSET_STATES
+	INSERT INTO ##TEMP_ROWSET_STATES(id, state_val)
+		SELECT ROW_NUMBER() OVER (Order By NEWID()), state_val
+		FROM @tempStateTable
+	--SELECT * FROM ##TEMP_ROWSET_STATES ORDER By id
+	DELETE FROM @tempStateTable
+	INSERT INTO @tempStateTable(id, state_val)
+		SELECT * FROM ##TEMP_ROWSET_STATES
+	--SELECT * FROM @tempStateTable ORDER By id
+
+	--todo:  why isnt this loop actually working properly....?
 	SET @ColCnt = (SELECT COUNT(*) FROM @tempStateTable)
 	SET @LoopIdx = 0
 	SET @TotalLoopCnt = 0
 	WHILE @TotalLoopCnt < @BatchRowSize
 	BEGIN
 		--create some variability in the amount added for each loop
-		SET @LoopCnt = @ColCnt / (CAST(100*RAND(CHECKSUM(NEWID())) AS INT) % 2 + 1)
-		INSERT INTO ##TEMP_ROWSET_STATES(id, state)
-			SELECT TOP(@LoopCnt) @TotalLoopCnt + id, state
+		SET @LoopCnt = @ColCnt / (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 2 + 1)
+		--PRINT(@LoopCnt)
+		--PRINT(@TotalLoopCnt)
+		--PRINT(@LoopIdx)
+		INSERT INTO ##TEMP_ROWSET_STATES(id, state_val)
+			SELECT TOP(@LoopCnt) @TotalLoopCnt + id AS id, state_val as state_val
 			FROM @tempStateTable
 			ORDER BY id
+			OPTION (MAXDOP 1)
 		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
 		SET @LoopIdx = @LoopIdx + 1
+		--IF @TotalLoopCnt > 5000
+		--	PRINT('total loop cnt met, exiting loop')
+		--	PRINT(@LoopIdx)
+		--	SET @TotalLoopCnt = @BatchRowSize + 1
 	END
 	SELECT COUNT(*) AS StatesCnt FROM ##TEMP_ROWSET_STATES
 	SELECT * FROM ##TEMP_ROWSET_STATES ORDER BY id
 
+
+	DECLARE @BatchRowSize INT = 100000
+	DECLARE @ColCnt INT = 0
+	DECLARE @TotalColCnt INT = 0
+	DECLARE @LoopIdx INT = 0
+	DECLARE @LoopCnt INT = 0
+	DECLARE @TotalLoopCnt INT = 0
 	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_WORDS_TABLE)
 	SET @LoopIdx = 0
 	SET @TotalLoopCnt = 0
@@ -278,7 +361,7 @@ BEGIN
 	END
 	SELECT COUNT(*) AS WordsCnt FROM ##TEMP_ROWSET_TEMPWORDS
 	SELECT * FROM ##TEMP_ROWSET_TEMPWORDS ORDER BY id
-
+	
 	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_ZIP_TABLE)
 	SET @LoopIdx = 0
 	SET @TotalLoopCnt = 0
@@ -329,6 +412,44 @@ BEGIN
 	END
 	SELECT COUNT(*) AS DatetimesCnt FROM ##TEMP_ROWSET_DATETIMES
 	SELECT * FROM ##TEMP_ROWSET_DATETIMES ORDER BY id
+	
+	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_BOOL_TABLE)
+	SET @LoopIdx = 0
+	SET @TotalLoopCnt = 0
+	WHILE @TotalLoopCnt < @BatchRowSize
+	BEGIN
+		--create some variability in the amount added for each loop
+		SET @LoopCnt = @ColCnt / (CAST(100*RAND(CHECKSUM(NEWID())) AS INT) % 2 + 1)
+		INSERT INTO ##TEMP_ROWSET_BOOLS(id, val)
+			SELECT TOP(@LoopCnt) @TotalLoopCnt + id, val
+			FROM ##TEMP_BOOL_TABLE
+			ORDER BY id
+		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
+		SET @LoopIdx = @LoopIdx + 1
+	END
+	SELECT COUNT(*) AS DatetimesCnt FROM ##TEMP_ROWSET_BOOLS
+	SELECT * FROM ##TEMP_ROWSET_BOOLS ORDER BY id
+
+	--todo:  generate HTTP table both smaller and larger ROWSET
+	--SELECT * FROM ##TEMP_URL_TABLE ORDER BY id
+	--SELECT * FROM ##TEMP_ROWSET_URLS ORDER BY id
+	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_URL_TABLE)
+	SET @LoopIdx = 0
+	SET @TotalLoopCnt = 0
+	WHILE @TotalLoopCnt < @BatchRowSize
+	BEGIN
+		--create some variability in the amount added for each loop
+		SET @LoopCnt = @ColCnt / (CAST(100*RAND(CHECKSUM(NEWID())) AS INT) % 2 + 1)
+		INSERT INTO ##TEMP_ROWSET_URLS(id, url)
+			SELECT TOP(@LoopCnt) @TotalLoopCnt + id, url
+			FROM ##TEMP_URL_TABLE
+			ORDER BY id
+		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
+		SET @LoopIdx = @LoopIdx + 1
+	END
+	SELECT COUNT(*) AS UrlsCnt FROM ##TEMP_ROWSET_URLS
+	SELECT * FROM ##TEMP_ROWSET_URLS ORDER BY id
+	
 
 --todo:  is there a way to get a small table from 10 rows to 1m in an efficient way, like a CTE or something
 --DROP TABLE IF EXISTS ##TEMP_ROWSET_SINGLE_INTS
@@ -354,4 +475,5 @@ BEGIN
 END
 
 
+SET NOCOUNT OFF
 EXEC dbo.GENERATE_FINAL_TEMP_DATA_FOR_OLTP

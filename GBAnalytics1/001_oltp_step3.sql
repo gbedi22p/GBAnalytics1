@@ -4,6 +4,7 @@
 Use Resellers2ndHandStuffOLTP
 SET NOCOUNT OFF
 
+
 DROP TABLE IF EXISTS RESELLERS_2ND_HAND_STUFF_COUPONS
 CREATE TABLE RESELLERS_2ND_HAND_STUFF_COUPONS
 (
@@ -17,7 +18,7 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_COUPONS
 	updated_at DATETIME,
 	usage_limit INT,
 	--todo: sql server doesnt support JSON
-	--user_phones INT
+	--skipping for now user_phones INT
 )
 
 
@@ -37,18 +38,18 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_ITEMS
 	--todo: sql server doesnt support array..so skipping recommendations
 	req_cust BIT,
 	reseller_id INT,
-	string_id INT, --very large
-	update_at DATETIME
+	string_id NVARCHAR(50),
+	updated_at DATETIME
 )
 
-DROP TABLE IF EXISTS RESELLERS_2ND_HAND_STUFF_SECTIONS
-CREATE TABLE RESELLERS_2ND_HAND_STUFF_SECTIONS
+DROP TABLE IF EXISTS RESELLERS_2ND_HAND_STUFF_ITEMSECTIONS
+CREATE TABLE RESELLERS_2ND_HAND_STUFF_ITEMSECTIONS
 (
 	id INT UNIQUE,
 	created_at DATETIME,
 	is_available BIT,
 	name NVARCHAR(100),
-	restaurant_id INT,
+	resellers_id INT,
 	updated_at DATETIME
 )
 
@@ -73,7 +74,7 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_ORDERS
 	updated_at DATETIME,
 	user_id INT,
 	user_ordering_location_address1 NVARCHAR(100),
-	user_ordering_location_city NVARCHAR(100),
+	user_ordering_location_city NVARCHAR(50),
 	user_ordering_location_location NVARCHAR(50),
 	user_ordering_location_place NVARCHAR(50),
 	user_ordering_location_state NVARCHAR(50),
@@ -104,9 +105,10 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_RESELLERS
 	contact_zip INT,
 	created_at DATETIME,
 	description NVARCHAR(50),
-	door_dash_id INT,
-	door_dash_url NVARCHAR(100),
-	food_type TINYINT,
+	--remove these ids since not required
+	--door_dash_id INT,
+	--door_dash_url NVARCHAR(100),
+	store_type TINYINT,
 	is_available BIT,
 	is_covid_complaint BIT,
 	is_open BIT,
@@ -138,7 +140,7 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_TOKENS
 	expires DATETIME,
 	token NVARCHAR(100),
 	updated_at DATETIME,
-	user NVARCHAR(100)
+	user_name NVARCHAR(100)
 )
 
 DROP TABLE IF EXISTS RESELLERS_2ND_HAND_STUFF_USERS
@@ -147,8 +149,8 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_USERS
 	id INT UNIQUE,
 	active BIT,
 	braintree_customer_id NVARCHAR(50),
-	business TINYINT, -- < 10 integer
-	business_role TINYINT, --<10 integer
+	business TINYINT, -- <10 integer
+	business_role TINYINT, -- <10 integer
 	contact NVARCHAR(50),
 	created_at DATETIME,
 	cur_location_address NVARCHAR(50),
@@ -172,42 +174,3 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_USERS
 	--used_coupons no support for arrays
 )
 
-/*
-coupons.csv
-__v,_id,createdAt,daysToLive,discountPercent,discountPrice,minimumOrder,name,updatedAt,usageLimit,userPhones
-
-#for now dont include deliveries object for simplicity sakes because nested object would complicate data creation
-#the field orders: [{}]
-#deliveries.csv
-#__v,_id,createdAt,driverId,driverName,failedOrders,orders,overallStatus,packageCounter,updatedAt
-
-
-items.csv
-__v,_id,createdAt,description,dietaryTagsList,isAvailable,itemExists,
-menuSection(id),name,photo,price,recommendations,reqCust,restaurant(id),stringId,updatedAt
-(replaced model menuitems.csv)
-
-sections.csv
-__v,_id,createdAt,isAvailable,name,restaurant(id),updatedAt
-(replaced model menusections.csv)
-
-orders.csv
-__v,_id,additionalDeliveryPrice,createdAt,deliveryId(id), deliveryPrice,deliveryStatus,discountPercent,foodPrice,
-itemInOrder{[count,price,menuItem(id),options(array of ids), restaurant(id), orderBy(id), pickupStatus]},
-itemsDelivered,nonce,paymentStatus,price,serviceFee,status,timeSlot(id),updatedAt,user(id),userOrderingLocation.address1,userOrderingLocation.city,userOrderingLocation.location,userOrderingLocation.place,userOrderingLocation.state,userOrderingLocation.zip
-
-resellers.csv
-__v,_id,budget,contact.address1,contact.city,contact.location,contact.place,contact.state,contact.timezone,contact.zip,createdAt,description,storeType,isAvailable,isCovidCompliant,isOpen,name,operatingHrs,stringId,updatedAt,views
-(replaced model restaurants.csv)
-
-taxrates.csv
-__v,_id,city,rates
-
-tokens.csv
-__v,_id,blacklisted,createdAt,expires,token,updatedAt,user(id)
-
-users.csv
-__v,_id,active,braintreeCustomerId,business,businessRole,contact,createdAt,curLocation.address,curLocation.location,dev,email,firstName,hashed_password,image.filename,image.path,isActive,isCompliant,lastName,passCode,passcodeExpires,phoneNumber,resetPasswordLink,role,salt,updatedAt,usedCoupons
-
-
-*/
