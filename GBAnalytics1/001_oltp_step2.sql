@@ -3,6 +3,33 @@
 
 --DROP PROCEDURE IF EXISTS dbo.GENERATE_FINAL_TEMP_DATA_FOR_OLTP
 
+
+/* SCALAR FUNCTION IS NOT USEFUL BECAUSE TABLE VARIABLE HAS TO BE A SCALAR, I.E. CONST
+
+DROP FUNCTION dbo.REORDER_IDS_IN_GROUPS
+DECLARE @BatchRowSize INT = 100000
+DECLARE @SourceDataSetRowCnt INT = 25000
+DECLARE @LoopCnt INT = @SourceDataSetRowCnt / (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 2 + 1) 
+REORDER_IDS_IN_GROUPS @BatchRowSize, @LoopCnt
+
+CREATE FUNCTION dbo.REORDER_IDS_IN_GROUPS(@BatchRowSize INT, @LoopCnt INT)
+--RETURNS TABLE(INT loopIdx, INT loopCntStart, INT loopCntEnd)
+RETURNS INT
+BEGIN
+	DECLARE @RowLoopCntTable TABLE(loopIdx INT, loopRowsCntStart INT, loopRowsCntEnd INT)
+	DECLARE @TotalLoopCnt INT = 0
+	DECLARE @LoopIdx INT = 0
+	WHILE @TotalLoopCnt < @BatchRowSize
+	BEGIN
+		--create some variability in the amount added for each loop
+		INSERT INTO @RowLoopCntTable(loopIdx, loopRowsCntStart, loopRowsCntEnd) VALUES(@LoopIdx, @TotalLoopCnt, @TotalLoopCnt + @LoopCnt)
+		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
+		SET @LoopIdx = @LoopIdx + 1
+	END
+	RETURN @RowLoopCntTable
+END
+*/
+
 Use Resellers2ndHandStuffOLTP
 ALTER DATABASE SCOPED CONFIGURATION SET MAXDOP = 0
 SELECT [value] FROM sys.database_scoped_configurations WHERE [name] = 'MAXDOP';
@@ -283,9 +310,7 @@ BEGIN
 	SELECT * FROM ##TEMP_ROWSET_PHONE_NOS ORDER BY id
 	*/
 
-
-	SELECT [value] FROM sys.database_scoped_configurations WHERE [name] = 'MAXDOP';
-	DECLARE @BatchRowSize INT = 100000
+	DECLARE @BatchRowSize INT = 1000000
 	DECLARE @ColCnt INT = 0
 	DECLARE @TotalColCnt INT = 0
 	DECLARE @LoopIdx INT = 0
@@ -295,25 +320,42 @@ BEGIN
 	--need temporary table for states to do faster cross joins then looping and adding
 	DECLARE @tempStateTable TABLE(id INT, state_val NVARCHAR(50))
 	INSERT INTO @tempStateTable(id, state_val)
-		SELECT 0, q.state_val FROM ##TEMP_STATE_TABLE q
+		SELECT ROW_NUMBER() OVER (Order by NEWID()), q.state_val FROM ##TEMP_STATE_TABLE q
 		CROSS APPLY (SELECT * FROM ##TEMP_STATE_TABLE) subq
 		CROSS APPLY (SELECT TOP(10) * FROM ##TEMP_STATE_TABLE) subq2
+		
 	--SELECT * FROM @tempStateTable ORDER BY id
 	--SELECT COUNT(*) FROM @tempStateTable
 
-	--reorder the ids to be unique starting from 0
+	DECLARE @loopCntTable TABLE(loopIdx INT, loopRowsCntStart INT, loopRowsCntEnd INT)
+	SET @TotalLoopCnt = 0
+	SET @ColCnt = (SELECT COUNT(*) FROM @tempStateTable)
+	SET @LoopIdx = 0
+	SET @TotalLoopCnt = 0
+	WHILE @TotalLoopCnt < @BatchRowSize
+	BEGIN
+		--create some variability in the repeated amount added for each loop
+		SET @LoopCnt = @ColCnt / (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 4 + 1)
+		INSERT INTO @loopCntTable(loopIdx, loopRowsCntStart, loopRowsCntEnd) VALUES(@LoopIdx, @TotalLoopCnt - 1, @TotalLoopCnt + @LoopCnt - 1)
+		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
+		SET @LoopIdx = @LoopIdx + 1
+	END
+	--SELECT * FROM @loopCntTable ORDER By loopIdx
+
 	DELETE FROM ##TEMP_ROWSET_STATES
 	INSERT INTO ##TEMP_ROWSET_STATES(id, state_val)
-		SELECT ROW_NUMBER() OVER (Order By NEWID()), state_val
-		FROM @tempStateTable
-	--SELECT * FROM ##TEMP_ROWSET_STATES ORDER By id
-	DELETE FROM @tempStateTable
-	INSERT INTO @tempStateTable(id, state_val)
-		SELECT * FROM ##TEMP_ROWSET_STATES
-	--SELECT * FROM @tempStateTable ORDER By id
+		SELECT slt.loopRowsCntStart + tst.id + 1 AS id, tst.state_val
+		FROM @tempStateTable tst
+		CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) slt
+		WHERE slt.loopRowsCntStart + tst.id <= slt.loopRowsCntEnd
+		ORDER BY slt.loopIdx, tst.id
+	SELECT * FROM ##TEMP_ROWSET_STATES ORDER BY id
+	SELECT COUNT(*) AS StatesCnt FROM ##TEMP_ROWSET_STATES
+	SELECT COUNT(*) AS bachshmoeltCnt FROM ##TEMP_ROWSET_STATES WHERE state_val='bachshmoelt'
 
+	--todo:  delete old way of doing this code below..?
 	--todo:  why isnt this loop actually working properly....?
-	SET @ColCnt = (SELECT COUNT(*) FROM @tempStateTable)
+	/*SET @ColCnt = (SELECT COUNT(*) FROM @tempStateTable)
 	SET @LoopIdx = 0
 	SET @TotalLoopCnt = 0
 	WHILE @TotalLoopCnt < @BatchRowSize
@@ -337,7 +379,7 @@ BEGIN
 	END
 	SELECT COUNT(*) AS StatesCnt FROM ##TEMP_ROWSET_STATES
 	SELECT * FROM ##TEMP_ROWSET_STATES ORDER BY id
-
+	*/
 
 	DECLARE @BatchRowSize INT = 100000
 	DECLARE @ColCnt INT = 0
