@@ -81,6 +81,7 @@ BEGIN
 	DELETE FROM ##TEMP_ROWSET_DATETIMES
 	DELETE FROM ##TEMP_ROWSET_BOOLS
 	DELETE FROM ##TEMP_ROWSET_URLS
+	DECLARE @loopCntTable TABLE(loopIdx INT, loopRowsCntStart INT, loopRowsCntEnd INT)
 	
 	/*
 	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_CITY_TABLE)
@@ -290,34 +291,48 @@ BEGIN
 	END
 	SELECT COUNT(*) AS IntsAll FROM ##TEMP_ROWSET_ALL_INTS
 	SELECT * FROM ##TEMP_ROWSET_ALL_INTS ORDER BY id
+	*/
 
-
+	DECLARE @BatchRowSize INT = 200000
+	DECLARE @ColCnt INT = 0
+	DECLARE @TotalColCnt INT = 0
+	DECLARE @LoopIdx INT = 0
+	DECLARE @LoopCnt INT = 0
+	DECLARE @TotalLoopCnt INT = 0
+	DECLARE @loopCntTable TABLE(loopIdx INT, loopRowsCntStart INT, loopRowsCntEnd INT)
+	DELETE FROM @loopCntTable
 	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_PHONE_NO_TABLE)
 	SET @LoopIdx = 0
 	SET @TotalLoopCnt = 0
 	TRUNCATE TABLE ##TEMP_ROWSET_PHONE_NOS
 	WHILE @TotalLoopCnt < @BatchRowSize
 	BEGIN
-		SET @LoopCnt = @ColCnt / (CAST(100*RAND(CHECKSUM(NEWID())) AS INT) % 2 + 1)
-		INSERT INTO ##TEMP_ROWSET_PHONE_NOS(id, phone_no, country_code)
-			SELECT TOP(@LoopCnt) @TotalLoopCnt + id, phone_no, country_code
-			FROM ##TEMP_PHONE_NO_TABLE
-			ORDER BY id
+		SET @LoopCnt = @ColCnt / (CAST(100*RAND(CHECKSUM(NEWID())) AS INT) % 4 + 1)
+		INSERT INTO @loopCntTable(loopIdx, loopRowsCntStart, loopRowsCntEnd) 
+		VALUES(@LoopIdx, @TotalLoopCnt - 1, @TotalLoopCnt + @LoopCnt - 1)
+
+		--INSERT INTO ##TEMP_ROWSET_PHONE_NOS(id, phone_no, country_code)
+		--	SELECT TOP(@LoopCnt) @TotalLoopCnt + id, phone_no, country_code
+		--	FROM ##TEMP_PHONE_NO_TABLE
+		--	ORDER BY id
 		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
 		SET @LoopIdx = @LoopIdx + 1
 	END
 	SELECT COUNT(*) AS PhoneNosCnt from ##TEMP_ROWSET_PHONE_NOS
 	SELECT * FROM ##TEMP_ROWSET_PHONE_NOS ORDER BY id
-	*/
 
-	DECLARE @BatchRowSize INT = 1000000
-	DECLARE @ColCnt INT = 0
-	DECLARE @TotalColCnt INT = 0
-	DECLARE @LoopIdx INT = 0
-	DECLARE @LoopCnt INT = 0
-	DECLARE @TotalLoopCnt INT = 0
+	DELETE FROM ##TEMP_ROWSET_PHONE_NOS
+	INSERT INTO ##TEMP_ROWSET_PHONE_NOS(id, phone_no)
+		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.phone_no
+		FROM ##TEMP_PHONE_NO_TABLE subq
+		CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) subq2
+		WHERE subq2.loopRowsCntStart + subq.id <= subq2.loopRowsCntEnd
+		--ORDER BY lct.loopIdx, tst.id
+	SELECT * FROM ##TEMP_ROWSET_PHONE_NOS ORDER BY id
+	SELECT COUNT(*) AS phoneNosCnt FROM ##TEMP_ROWSET_PHONE_NOS
+	
 
-	--need temporary table for states to do faster cross joins then looping and adding
+	--need temporary table variable for states to do faster cross joins instead of looping and adding
 	DECLARE @tempStateTable TABLE(id INT, state_val NVARCHAR(50))
 	INSERT INTO @tempStateTable(id, state_val)
 		SELECT ROW_NUMBER() OVER (Order by NEWID()), q.state_val FROM ##TEMP_STATE_TABLE q
@@ -327,59 +342,36 @@ BEGIN
 	--SELECT * FROM @tempStateTable ORDER BY id
 	--SELECT COUNT(*) FROM @tempStateTable
 
-	DECLARE @loopCntTable TABLE(loopIdx INT, loopRowsCntStart INT, loopRowsCntEnd INT)
 	SET @TotalLoopCnt = 0
 	SET @ColCnt = (SELECT COUNT(*) FROM @tempStateTable)
 	SET @LoopIdx = 0
 	SET @TotalLoopCnt = 0
+	DELETE FROM @loopCntTable
 	WHILE @TotalLoopCnt < @BatchRowSize
 	BEGIN
 		--create some variability in the repeated amount added for each loop
 		SET @LoopCnt = @ColCnt / (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 4 + 1)
-		INSERT INTO @loopCntTable(loopIdx, loopRowsCntStart, loopRowsCntEnd) VALUES(@LoopIdx, @TotalLoopCnt - 1, @TotalLoopCnt + @LoopCnt - 1)
+		INSERT INTO @loopCntTable(loopIdx, loopRowsCntStart, loopRowsCntEnd) 
+		VALUES(@LoopIdx, @TotalLoopCnt - 1, @TotalLoopCnt + @LoopCnt - 1)
 		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
 		SET @LoopIdx = @LoopIdx + 1
 	END
 	--SELECT * FROM @loopCntTable ORDER By loopIdx
 
+	--build final temp_rowset table, total rows cnt = @BatchRowSize
 	DELETE FROM ##TEMP_ROWSET_STATES
 	INSERT INTO ##TEMP_ROWSET_STATES(id, state_val)
-		SELECT slt.loopRowsCntStart + tst.id + 1 AS id, tst.state_val
-		FROM @tempStateTable tst
-		CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) slt
-		WHERE slt.loopRowsCntStart + tst.id <= slt.loopRowsCntEnd
-		ORDER BY slt.loopIdx, tst.id
+		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.state_val
+		FROM @tempStateTable subq
+		CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) subq2
+		WHERE subq2.loopRowsCntStart + subq.id <= subq2.loopRowsCntEnd
+		--ORDER BY lct.loopIdx, tst.id
 	SELECT * FROM ##TEMP_ROWSET_STATES ORDER BY id
 	SELECT COUNT(*) AS StatesCnt FROM ##TEMP_ROWSET_STATES
-	SELECT COUNT(*) AS bachshmoeltCnt FROM ##TEMP_ROWSET_STATES WHERE state_val='bachshmoelt'
+	--SELECT COUNT(*) AS bachshmoeltCnt FROM ##TEMP_ROWSET_STATES WHERE state_val='bachshmoelt'
 
-	--todo:  delete old way of doing this code below..?
-	--todo:  why isnt this loop actually working properly....?
-	/*SET @ColCnt = (SELECT COUNT(*) FROM @tempStateTable)
-	SET @LoopIdx = 0
-	SET @TotalLoopCnt = 0
-	WHILE @TotalLoopCnt < @BatchRowSize
-	BEGIN
-		--create some variability in the amount added for each loop
-		SET @LoopCnt = @ColCnt / (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 2 + 1)
-		--PRINT(@LoopCnt)
-		--PRINT(@TotalLoopCnt)
-		--PRINT(@LoopIdx)
-		INSERT INTO ##TEMP_ROWSET_STATES(id, state_val)
-			SELECT TOP(@LoopCnt) @TotalLoopCnt + id AS id, state_val as state_val
-			FROM @tempStateTable
-			ORDER BY id
-			OPTION (MAXDOP 1)
-		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
-		SET @LoopIdx = @LoopIdx + 1
-		--IF @TotalLoopCnt > 5000
-		--	PRINT('total loop cnt met, exiting loop')
-		--	PRINT(@LoopIdx)
-		--	SET @TotalLoopCnt = @BatchRowSize + 1
-	END
-	SELECT COUNT(*) AS StatesCnt FROM ##TEMP_ROWSET_STATES
-	SELECT * FROM ##TEMP_ROWSET_STATES ORDER BY id
-	*/
+
+
 
 	DECLARE @BatchRowSize INT = 100000
 	DECLARE @ColCnt INT = 0
