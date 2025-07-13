@@ -37,7 +37,7 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_ITEMS
 	price FLOAT,
 	--todo: sql server doesnt support array..so skipping recommendations
 	req_cust BIT,
-	reseller_id INT,
+	resellers_id INT,
 	string_id NVARCHAR(50),
 	updated_at DATETIME
 )
@@ -61,12 +61,12 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_ORDERS
 	--todo: for now skipping delivery stuff as that data and logic would probably complicate db schema
 	--delivery_id INT,
 	--delivery_price FLOAT,
-	--delivery_status NVARCHAR(100), --todo:  create new temp table to handle real statuses..?
+	--delivery_status NVARCHAR(100), --todo:  consider creating enumerated strings to emulate limited set of real statuses..?
 	discount_percent INT, --use 2 digit int < 20
 	item_price FLOAT, --use 2 digit float < 20
 	items_in_order_id INT,
-	nonce INT, --very lagrge INT
-	payment_status BIT, --todo:  create large temp table...?
+	nonce INT, --very large INT
+	payment_status BIT,
 	price FLOAT, --use 2 digit float < 20
 	service_fee FLOAT, --use 2 digit float < 1 perhaps..?
 	status BIT,
@@ -85,18 +85,20 @@ DROP TABLE IF EXISTS RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER
 CREATE TABLE RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER
 (
 	id INT UNIQUE,
+	order_id INT,  --note:  this ID is not updated until the order is created first, maybe remove this..?
 	count TINYINT,
 	pickup_status BIT,
 	price FLOAT, --USE 2 digit float < 20
 	item_id INT,
-	reseller_id INT
+	resellers_id INT
 )
 
 DROP TABLE IF EXISTS RESELLERS_2ND_HAND_STUFF_RESELLERS
 CREATE TABLE RESELLERS_2ND_HAND_STUFF_RESELLERS
 (
 	id INT UNIQUE,
-	budget TINYINT, --use tiny/small int < 10 for now since no enum available yet
+	budget NVARCHAR(50), --use enum-like category BUDGET_CATG
+	kind_of_business NVARCHAR(50),  --use enum like category KIND_OF_BUSINESS
 	contact_address1 NVARCHAR(50), 
 	contact_city NVARCHAR(50),
 	contact_place NVARCHAR(50),
@@ -140,7 +142,8 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_TOKENS
 	expires DATETIME,
 	token NVARCHAR(100),
 	updated_at DATETIME,
-	user_name NVARCHAR(100)
+	user_name NVARCHAR(100),
+	user_id INT,  --foreign key for user_id associated with this token
 )
 
 DROP TABLE IF EXISTS RESELLERS_2ND_HAND_STUFF_USERS
@@ -149,8 +152,8 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_USERS
 	id INT UNIQUE,
 	active BIT,
 	braintree_customer_id NVARCHAR(50),
-	business TINYINT, -- <10 integer
-	business_role TINYINT, -- <10 integer
+	business TINYINT, -- <10 integer, enum
+	business_role TINYINT, -- <10 integer, enum
 	contact NVARCHAR(50),
 	created_at DATETIME,
 	cur_location_address NVARCHAR(50),
@@ -167,7 +170,7 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_USERS
 	pass_code INT,  --LARGE INT > 100
 	pass_code_expires DATETIME,
 	phone_number NVARCHAR(50),
-	reset_password_link NVARCHAR(50), --todo:   create an http temp table
+	reset_password_link NVARCHAR(256),
 	role NVARCHAR(50),
 	salt TINYINT,
 	updated_at DATETIME,

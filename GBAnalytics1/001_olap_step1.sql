@@ -1,0 +1,7 @@
+
+--setup some OLAP TABLES FOR USAGE in medallion architecture
+
+CREATE TABLE OLAP_RESELLERS_2ND_HAND_STUFF_SALES
+(
+
+)

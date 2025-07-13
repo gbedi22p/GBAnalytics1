@@ -1,46 +1,19 @@
---Create the store procedure and run it to generate the BIG temp tables of various global temp tables
-
-
---DROP PROCEDURE IF EXISTS dbo.GENERATE_FINAL_TEMP_DATA_FOR_OLTP
-
-
-/* SCALAR FUNCTION IS NOT USEFUL BECAUSE TABLE VARIABLE HAS TO BE A SCALAR, I.E. CONST
-
-DROP FUNCTION dbo.REORDER_IDS_IN_GROUPS
-DECLARE @BatchRowSize INT = 100000
-DECLARE @SourceDataSetRowCnt INT = 25000
-DECLARE @LoopCnt INT = @SourceDataSetRowCnt / (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 2 + 1) 
-REORDER_IDS_IN_GROUPS @BatchRowSize, @LoopCnt
-
-CREATE FUNCTION dbo.REORDER_IDS_IN_GROUPS(@BatchRowSize INT, @LoopCnt INT)
---RETURNS TABLE(INT loopIdx, INT loopCntStart, INT loopCntEnd)
-RETURNS INT
-BEGIN
-	DECLARE @RowLoopCntTable TABLE(loopIdx INT, loopRowsCntStart INT, loopRowsCntEnd INT)
-	DECLARE @TotalLoopCnt INT = 0
-	DECLARE @LoopIdx INT = 0
-	WHILE @TotalLoopCnt < @BatchRowSize
-	BEGIN
-		--create some variability in the amount added for each loop
-		INSERT INTO @RowLoopCntTable(loopIdx, loopRowsCntStart, loopRowsCntEnd) VALUES(@LoopIdx, @TotalLoopCnt, @TotalLoopCnt + @LoopCnt)
-		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
-		SET @LoopIdx = @LoopIdx + 1
-	END
-	RETURN @RowLoopCntTable
-END
-*/
-
 Use Resellers2ndHandStuffOLTP
+SET NOCOUNT OFF
+DROP PROCEDURE [dbo].GENERATE_FINAL_TEMP_DATA_FOR_OLTP
 
---ALTER DATABASE SCOPED CONFIGURATION SET MAXDOP = 0
---SELECT [value] FROM sys.database_scoped_configurations WHERE [name] = 'MAXDOP';
---ALTER DATABASE SCOPED CONFIGURATION SET MAXDOP = 1
---SELECT [value] FROM sys.database_scoped_configurations WHERE [name] = 'MAXDOP';
-
-CREATE OR ALTER PROCEDURE dbo.GENERATE_FINAL_TEMP_DATA_FOR_OLTP
+CREATE OR ALTER PROCEDURE [dbo].GENERATE_FINAL_TEMP_DATA_FOR_OLTP
 WITH EXECUTE AS OWNER
 AS
 BEGIN
+	--STEP2 - SETUP ALL OF THE FINAL TEMP DATA WITH EQUAL NUMBER OF ROW COUNTS FOR ALL TEMP TABLES FOR FASTER INSERTION LATER
+	--
+	--DOP caused an issue earlier so this is way to check te DOP at the database level
+	--however, from my earlier test, using this did not prevent the DOP from going into parallel way
+	--ALTER DATABASE SCOPED CONFIGURATION SET MAXDOP = 0
+	--SELECT [value] FROM sys.database_scoped_configurations WHERE [name] = 'MAXDOP';
+	--ALTER DATABASE SCOPED CONFIGURATION SET MAXDOP = 1
+	--SELECT [value] FROM sys.database_scoped_configurations WHERE [name] = 'MAXDOP';
 	--cities 1 table variable
 	--emails 1 table variable
 	--floats 1 table > 500
@@ -56,24 +29,26 @@ BEGIN
 	--zips 1 table
 	--date 1 table
 	--datetime 1 table	
-	DELETE FROM ##TEMP_ROWSET_CITIES
-	DELETE FROM ##TEMP_ROWSET_EMAILS
-	DELETE FROM ##TEMP_ROWSET_FLOATS_TINY
-	DELETE FROM ##TEMP_ROWSET_FLOATS_MED
-	DELETE FROM ##TEMP_ROWSET_FLOATS_LARGE
-	DELETE FROM ##TEMP_ROWSET_INTS_2_DIGITS
-	DELETE FROM ##TEMP_ROWSET_INTS_3_DIGITS
-	DELETE FROM ##TEMP_ROWSET_INTS_4_DIGITS
-	DELETE FROM ##TEMP_ROWSET_ALL_INTS
-	DELETE FROM ##TEMP_ROWSET_PHONE_NOS
-	DELETE FROM ##TEMP_ROWSET_SINGLE_INTS
-	DELETE FROM ##TEMP_ROWSET_STATES
-	DELETE FROM ##TEMP_ROWSET_TEMPWORDS
-	DELETE FROM ##TEMP_ROWSET_ZIPS
-	DELETE FROM ##TEMP_ROWSET_DATES
-	DELETE FROM ##TEMP_ROWSET_DATETIMES
-	DELETE FROM ##TEMP_ROWSET_BOOLS
-	DELETE FROM ##TEMP_ROWSET_URLS
+	TRUNCATE TABLE ##TEMP_ROWSET_CITIES
+	TRUNCATE TABLE ##TEMP_ROWSET_EMAILS
+	TRUNCATE TABLE ##TEMP_ROWSET_FLOATS_TINY
+	TRUNCATE TABLE ##TEMP_ROWSET_FLOATS_MED
+	TRUNCATE TABLE ##TEMP_ROWSET_FLOATS_LARGE
+	TRUNCATE TABLE ##TEMP_ROWSET_INTS_2_DIGITS
+	TRUNCATE TABLE ##TEMP_ROWSET_INTS_3_DIGITS
+	TRUNCATE TABLE ##TEMP_ROWSET_INTS_4_DIGITS
+	TRUNCATE TABLE ##TEMP_ROWSET_ALL_UNIQUE_INTS
+	TRUNCATE TABLE ##TEMP_ROWSET_PHONE_NOS
+	TRUNCATE TABLE ##TEMP_ROWSET_SINGLE_INTS
+	TRUNCATE TABLE ##TEMP_ROWSET_STATES
+	TRUNCATE TABLE ##TEMP_ROWSET_TEMPWORDS
+	TRUNCATE TABLE ##TEMP_ROWSET_ZIPS
+	TRUNCATE TABLE ##TEMP_ROWSET_DATES
+	TRUNCATE TABLE ##TEMP_ROWSET_DATETIMES
+	TRUNCATE TABLE ##TEMP_ROWSET_BOOLS
+	TRUNCATE TABLE ##TEMP_ROWSET_URLS
+	TRUNCATE TABLE ##TEMP_ROWSET_BUDGET_CATGS
+	TRUNCATE TABLE ##TEMP_ROWSET_KIND_OF_BUSINESS_CATGS
 
 	DECLARE @loopCntTable TABLE(loopIdx INT, loopRowsCntStart INT, loopRowsCntEnd INT)
 	DECLARE @BatchRowSize INT = 1000000
@@ -82,8 +57,8 @@ BEGIN
 	DECLARE @LoopIdx INT = 0
 	DECLARE @LoopCnt INT = 0
 	DECLARE @TotalLoopCnt INT = 0
+	
 	DELETE FROM @loopCntTable
-	/*
 	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_CITY_TABLE)
 	SET @LoopIdx = 0
 	SET @TotalLoopCnt = 0
@@ -103,8 +78,8 @@ BEGIN
 		CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) subq2
 		WHERE subq2.loopRowsCntStart + subq.id <= subq2.loopRowsCntEnd
 		--ORDER BY lct.loopIdx, tst.id
-	SELECT * FROM ##TEMP_ROWSET_CITIES ORDER BY id
 	SELECT COUNT(*) AS citiesCnt FROM ##TEMP_ROWSET_CITIES
+	SELECT * FROM ##TEMP_ROWSET_CITIES ORDER BY id
 
 	DELETE FROM @loopCntTable
 	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_EMAIL_TABLE)
@@ -126,8 +101,8 @@ BEGIN
 		CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) subq2
 		WHERE subq2.loopRowsCntStart + subq.id <= subq2.loopRowsCntEnd
 		--ORDER BY lct.loopIdx, tst.id
+	SELECT COUNT(*) AS emailsCnt FROM ##TEMP_ROWSET_EMAILS
 	SELECT * FROM ##TEMP_ROWSET_EMAILS ORDER BY id
-	SELECT COUNT(*) AS emailsCnt FROM ##TEMP_ROWSET_EMAILS*/
 
 	--need temporary table for states to do faster cross joins then looping and adding
 	DECLARE @TempFloatTable TABLE(id INT, val FLOAT)
@@ -222,14 +197,8 @@ BEGIN
 		SET @LoopCnt = @ColCnt / (CAST(100*RAND(CHECKSUM(NEWID())) AS INT) % 4 + 1)
 		INSERT INTO @loopCntTable(loopIdx, loopRowsCntStart, loopRowsCntEnd) 
 		VALUES(@LoopIdx, @TotalLoopCnt - 1, @TotalLoopCnt + @LoopCnt - 1)
-		--INSERT INTO ##TEMP_ROWSET_FLOATS_LARGE(id, val)
-		--	SELECT TOP(@LoopCnt) @TotalLoopCnt + id, val 
-		--	FROM @TempFloatTable 
-		--	ORDER BY id
 		SET @TotalLoopCnt = @TotalLoopCnt + @LoopCnt
 		SET @LoopIdx = @LoopIdx + 1
-		--PRINT(@LoopCnt)
-		--PRINT(@LoopCnt + ' ' + @TotalLoopCnt + ' ' + @LoopIdx)
 		--todo:  introduce some random errors like bad values, nulls, etc. perhaps..?
 	END
 	
@@ -241,8 +210,9 @@ BEGIN
 		WHERE subq2.loopRowsCntStart + subq.id <= subq2.loopRowsCntEnd
 		--ORDER BY lct.loopIdx, tst.id
 	SELECT COUNT(*) AS LargeFloatsCnt FROM ##TEMP_ROWSET_FLOATS_LARGE
-	SELECT * FROM ##TEMP_ROWSET_FLOATS_LARGE ORDER BY ID
+	SELECT * FROM ##TEMP_ROWSET_FLOATS_LARGE ORDER BY id
 
+	--todo:  come back later and check if can skip thi step later on..soemhow
 	--create a temp table variable in order to reorder the IDs
 	DECLARE @tempIntTable TABLE(id INT, val INT)
 	INSERT INTO @tempIntTable(id, val)
@@ -259,10 +229,6 @@ BEGIN
 		SET @LoopCnt = @ColCnt / (CAST(100*RAND(CHECKSUM(NEWID())) AS INT) % 4 + 1)
 		INSERT INTO @loopCntTable(loopIdx, loopRowsCntStart, loopRowsCntEnd) 
 		VALUES(@LoopIdx, @TotalLoopCnt - 1, @TotalLoopCnt + @LoopCnt - 1)
-		--INSERT INTO ##TEMP_ROWSET_INTS_2_DIGITS(id, val)
-		--	SELECT TOP(@LoopCnt) @TotalLoopCnt + id, val 
-		--	FROM @tempIntTable 
-		--	ORDER BY id
 		SET @TotalLoopCnt = @TotalLoopCnt + @LoopCnt
 		SET @LoopIdx = @LoopIdx + 1
 		--PRINT(@LoopCnt)
@@ -271,7 +237,7 @@ BEGIN
 	TRUNCATE TABLE ##TEMP_ROWSET_INTS_2_DIGITS
 	INSERT INTO ##TEMP_ROWSET_INTS_2_DIGITS(id, val)
 		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.val
-		FROM @TempIntTable subq
+		FROM @tempIntTable subq
 		CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) subq2
 		WHERE subq2.loopRowsCntStart + subq.id <= subq2.loopRowsCntEnd
 		--ORDER BY lct.loopIdx, tst.id
@@ -298,14 +264,23 @@ BEGIN
 	END
 	INSERT INTO ##TEMP_ROWSET_INTS_3_DIGITS(id, val)
 		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.val
-		FROM @TempIntTable subq
+		FROM @tempIntTable subq
 		CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) subq2
 		WHERE subq2.loopRowsCntStart + subq.id <= subq2.loopRowsCntEnd
 		--ORDER BY lct.loopIdx, tst.id
 	SELECT COUNT(*) AS Ints3Cnt FROM ##TEMP_ROWSET_INTS_3_DIGITS
 	SELECT * FROM ##TEMP_ROWSET_INTS_3_DIGITS ORDER BY ID
 
+	/*DECLARE @loopCntTable TABLE(loopIdx INT, loopRowsCntStart INT, loopRowsCntEnd INT)
+	DECLARE @tempIntTable TABLE(id INT, val INT)
+	DECLARE @BatchRowSize INT = 1000000
+	DECLARE @ColCnt INT = 0
+	DECLARE @TotalColCnt INT = 0
+	DECLARE @LoopIdx INT = 0
+	DECLARE @LoopCnt INT = 0
+	DECLARE @TotalLoopCnt INT = 0*/
 	--create a temp table variable in order to reorder the IDs
+	DELETE FROM @tempIntTable
 	INSERT INTO @tempIntTable(id, val)
 		SELECT ROW_NUMBER() OVER (Order by NEWID()), val FROM ##TEMP_INT_TABLE WHERE num_digits=4
 
@@ -322,33 +297,80 @@ BEGIN
 		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
 		SET @LoopIdx = @LoopIdx + 1
 	END
+	SELECT * FROM @loopCntTable
 	INSERT INTO ##TEMP_ROWSET_INTS_4_DIGITS(id, val)
-	SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.val
-	FROM @TempIntTable subq
-	CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) subq2
-	WHERE subq2.loopRowsCntStart + subq.id <= subq2.loopRowsCntEnd
-	--ORDER BY lct.loopIdx, tst.id
+		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.val
+		FROM @tempIntTable subq
+		CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) subq2
+		WHERE subq2.loopRowsCntStart + subq.id <= subq2.loopRowsCntEnd
+		--ORDER BY lct.loopIdx, tst.id
 	SELECT COUNT(*) AS Ints4Digits FROM ##TEMP_ROWSET_INTS_4_DIGITS
 	SELECT * FROM ##TEMP_ROWSET_INTS_4_DIGITS ORDER BY id
 
+	--Next Step:  setup the ##TEMP_ROWSET_SINGLE_INTS table
+	--DECLARE @tempIntTable TABLE(id INT, val INT)
+	DELETE FROM @tempIntTable
+	INSERT INTO @tempIntTable (id, val)
+		SELECT ROW_NUMBER() OVER (ORDER BY NEWID()) as id, q1.val as val
+		FROM ##TEMP_SINGLE_INT_TABLE q1
+		CROSS JOIN ##TEMP_SINGLE_INT_TABLE q2
+		CROSS JOIN ##TEMP_SINGLE_INT_TABLE q3
+		CROSS JOIN ##TEMP_SINGLE_INT_TABLE q4
+	SELECT * FROM @tempIntTable
+	--SELECT COUNT(*) FROM @tempIntTable
+	
 	DELETE FROM @loopCntTable
-	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_INT_TABLE)
+	SET @ColCnt = (SELECT COUNT(*) FROM @tempIntTable)
 	SET @LoopIdx = 0
 	SET @TotalLoopCnt = 0
-	TRUNCATE TABLE ##TEMP_ROWSET_ALL_INTS
 	WHILE @TotalLoopCnt < @BatchRowSize
 	BEGIN
-		SET @LoopCnt = @ColCnt / (CAST(100*RAND(CHECKSUM(NEWID())) AS INT) % 2 + 1)
-		INSERT INTO ##TEMP_ROWSET_ALL_INTS(id, val)
-			SELECT TOP(@LoopCnt) @TotalLoopCnt + id, val
-			FROM ##TEMP_INT_TABLE
-			ORDER BY id
+		SET @LoopCnt = @ColCnt / (CAST(100*RAND(CHECKSUM(NEWID())) AS INT) % 4 + 1)
+		INSERT INTO @loopCntTable(loopIdx, loopRowsCntStart, loopRowsCntEnd) 
+			VALUES(@LoopIdx, @TotalLoopCnt - 1, @TotalLoopCnt + @LoopCnt - 1)
 		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
 		SET @LoopIdx = @LoopIdx + 1
 	END
-	SELECT COUNT(*) AS IntsAll FROM ##TEMP_ROWSET_ALL_INTS
-	SELECT * FROM ##TEMP_ROWSET_ALL_INTS ORDER BY id
+	TRUNCATE TABLE ##TEMP_ROWSET_SINGLE_INTS
+	INSERT INTO ##TEMP_ROWSET_SINGLE_INTS(id, val)
+		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.val
+		FROM @tempIntTable subq
+		CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) subq2
+		WHERE subq2.loopRowsCntStart + subq.id <= subq2.loopRowsCntEnd
+	SELECT COUNT(*) AS SingleIntsCnt FROM ##TEMP_ROWSET_SINGLE_INTS
+	SELECT TOP(10000) * FROM ##TEMP_ROWSET_SINGLE_INTS ORDER BY id
+	SELECT COUNT(*) as cntAs0
+	FROM ##TEMP_ROWSET_SINGLE_INTS
+	WHERE val=0
 	
+	TRUNCATE TABLE ##TEMP_ROWSET_ALL_UNIQUE_INTS
+	TRUNCATE TABLE ##TEMP_ROWSET_ALL_UNIQUE_INTS_STEP1
+
+	--DECLARE @BatchRowSize INT = 500000
+	--Need unique sequential integers for usage as the primary key in the final OLTP database
+	DECLARE @DynamicSqlCmd NVARCHAR(MAX) = N''
+	TRUNCATE TABLE ##TEMP_ROWSET_ALL_UNIQUE_INTS_STEP1
+	TRUNCATE TABLE ##TEMP_ROWSET_ALL_UNIQUE_INTS
+	DECLARE @NumCrossApplyAllInts INT = LOG(@BatchRowSize, 10)
+	DECLARE @NumCrossApplyAllIdx INT = 2
+	SET @DynamicSqlCmd = CONCAT('INSERT INTO ##TEMP_ROWSET_ALL_UNIQUE_INTS_STEP1(id)', CHAR(13),
+	                            'SELECT ROW_NUMBER() OVER (ORDER BY NEWID()) as id FROM ##TEMP_SINGLE_INT_TABLE', CHAR(13))
+	SET @NumCrossApplyAllIdx = 1
+	WHILE @NumCrossApplyAllIdx <= @NumCrossApplyAllInts
+	BEGIN
+		SET @DynamicSqlCmd = CONCAT(@DynamicSqlCmd, CHAR(13), 'CROSS JOIN ##TEMP_SINGLE_INT_TABLE subq', 
+		                            CAST(@NumCrossApplyAllIdx AS NVARCHAR), CHAR(13))
+		SET @NumCrossApplyAllIdx = @NumCrossApplyAllIdx + 1
+	END
+	PRINT(@DynamicSqlCmd)
+	EXEC(@DynamicSqlCmd)
+	SET @DynamicSqlCmd = 'TRUNCATE TABLE ##TEMP_ROWSET_ALL_UNIQUE_INTS' + CHAR(13) +
+  	                     'INSERT INTO ##TEMP_ROWSET_ALL_UNIQUE_INTS(id, val)' + CHAR(13) +
+		                 'SELECT id, id as val FROM ##TEMP_ROWSET_ALL_UNIQUE_INTS_STEP1'
+	EXEC(@DynamicSqlCmd)
+	--SELECT COUNT(*) FROM ##TEMP_ROWSET_ALL_UNIQUE_INTS
+	--SELECT * FROM ##TEMP_ROWSET_ALL_UNIQUE_INTS ORDER BY id
+
 	DELETE FROM @loopCntTable
 	SET @ColCnt = (SELECT COUNT(*) FROM ##TEMP_PHONE_NO_TABLE)
 	SET @LoopIdx = 0
@@ -363,7 +385,7 @@ BEGIN
 		SET @LoopIdx = @LoopIdx + 1
 	END
 	
-	DELETE FROM ##TEMP_ROWSET_PHONE_NOS
+	TRUNCATE TABLE ##TEMP_ROWSET_PHONE_NOS
 	INSERT INTO ##TEMP_ROWSET_PHONE_NOS(id, phone_no)
 		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.phone_no
 		FROM ##TEMP_PHONE_NO_TABLE subq
@@ -398,7 +420,7 @@ BEGIN
 	--SELECT * FROM @loopCntTable ORDER By loopIdx
 
 	--build final temp_rowset table, total rows cnt = @BatchRowSize
-	DELETE FROM ##TEMP_ROWSET_STATES
+	TRUNCATE TABLE ##TEMP_ROWSET_STATES
 	INSERT INTO ##TEMP_ROWSET_STATES(id, state_val)
 		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.state_val
 		FROM @tempStateTable subq
@@ -423,7 +445,7 @@ BEGIN
 		SET @LoopIdx = @LoopIdx + 1
 	END
 
-	DELETE FROM ##TEMP_ROWSET_TEMPWORDS
+	TRUNCATE TABLE ##TEMP_ROWSET_TEMPWORDS
 	INSERT INTO ##TEMP_ROWSET_TEMPWORDS(id, val)
 		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.val
 		FROM ##TEMP_WORDS_TABLE subq
@@ -447,7 +469,7 @@ BEGIN
 		SET @LoopIdx = @LoopIdx + 1
 	END
 
-	DELETE FROM ##TEMP_ROWSET_ZIPS
+	TRUNCATE TABLE ##TEMP_ROWSET_ZIPS
 	INSERT INTO ##TEMP_ROWSET_ZIPS(id, zip_code)
 		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.zip_code
 		FROM ##TEMP_ZIP_TABLE subq
@@ -470,7 +492,7 @@ BEGIN
 		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
 		SET @LoopIdx = @LoopIdx + 1
 	END
-	DELETE FROM ##TEMP_ROWSET_DATES
+	TRUNCATE TABLE ##TEMP_ROWSET_DATES
 	INSERT INTO ##TEMP_ROWSET_DATES(id, val)
 		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.val
 		FROM ##TEMP_DATE_TABLE subq
@@ -493,7 +515,7 @@ BEGIN
 		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
 		SET @LoopIdx = @LoopIdx + 1
 	END
-	DELETE FROM ##TEMP_ROWSET_DATETIMES
+	TRUNCATE TABLE ##TEMP_ROWSET_DATETIMES
 	INSERT INTO ##TEMP_ROWSET_DATETIMES(id, val)
 		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.val
 		FROM ##TEMP_DATETIME_TABLE subq
@@ -516,7 +538,7 @@ BEGIN
 		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
 		SET @LoopIdx = @LoopIdx + 1
 	END
-	DELETE FROM ##TEMP_ROWSET_BOOLS
+	TRUNCATE TABLE ##TEMP_ROWSET_BOOLS
 	INSERT INTO ##TEMP_ROWSET_BOOLS(id, val)
 		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.val
 		FROM ##TEMP_BOOL_TABLE subq
@@ -539,7 +561,7 @@ BEGIN
 		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
 		SET @LoopIdx = @LoopIdx + 1
 	END
-	DELETE FROM ##TEMP_ROWSET_URLS
+	TRUNCATE TABLE ##TEMP_ROWSET_URLS
 	INSERT INTO ##TEMP_ROWSET_URLS(id, url)
 		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.url
 		FROM ##TEMP_URL_TABLE subq
@@ -548,31 +570,81 @@ BEGIN
 		--ORDER BY lct.loopIdx, tst.id
 	SELECT COUNT(*) AS UrlsCnt FROM ##TEMP_ROWSET_URLS
 	SELECT * FROM ##TEMP_ROWSET_URLS ORDER BY id
+
+	DECLARE @tempNvarcharTable TABLE(id INT, val NVARCHAR(50))
+	DELETE FROM @tempNvarcharTable
+	INSERT INTO @tempNvarcharTable (id, val)
+		SELECT ROW_NUMBER() OVER (ORDER BY q1.val) as id, q1.val as val
+		FROM ##TEMP_BUDGET_CATG_TABLE q1
+		CROSS JOIN ##TEMP_BUDGET_CATG_TABLE q2
+		CROSS JOIN ##TEMP_BUDGET_CATG_TABLE q3
+		CROSS JOIN ##TEMP_BUDGET_CATG_TABLE q4
+		CROSS JOIN ##TEMP_BUDGET_CATG_TABLE q5
+		CROSS JOIN ##TEMP_BUDGET_CATG_TABLE q6
+	SELECT * FROM @tempNvarcharTable
+	SELECT COUNT(*) FROM @tempNvarcharTable
 	
+	DELETE FROM @loopCntTable
+	SET @ColCnt = (SELECT COUNT(*) FROM @tempNvarcharTable)
+	SET @LoopIdx = 0
+	SET @TotalLoopCnt = 0
+	WHILE @TotalLoopCnt < @BatchRowSize
+	BEGIN
+		SET @LoopCnt = @ColCnt / (CAST(100*RAND(CHECKSUM(NEWID())) AS INT) % 4 + 1)
+		INSERT INTO @loopCntTable(loopIdx, loopRowsCntStart, loopRowsCntEnd) 
+			   VALUES(@LoopIdx, @TotalLoopCnt - 1, @TotalLoopCnt + @LoopCnt - 1)
+		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
+		SET @LoopIdx = @LoopIdx + 1
+	END
+	TRUNCATE TABLE ##TEMP_ROWSET_BUDGET_CATGS
+	INSERT INTO ##TEMP_ROWSET_BUDGET_CATGS(id, val)
+		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.val
+		FROM @TempNvarcharTable subq
+		CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) subq2
+		WHERE subq2.loopRowsCntStart + subq.id <= subq2.loopRowsCntEnd
+	SELECT COUNT(*) AS BudgetCatgsCnt FROM ##TEMP_ROWSET_BUDGET_CATGS
+	SELECT TOP(10000) * FROM ##TEMP_ROWSET_BUDGET_CATGS ORDER BY id
 
---todo:  is there a way to get a small table from 10 rows to 1m in an efficient way, like a CTE or something
---DROP TABLE IF EXISTS ##TEMP_ROWSET_SINGLE_INTS
-
-
-	/*
-	SELECT subq.id, subq.val, subq2.val, subq3.val, subq4.val 
-	FROM @Col1 subq
-	JOIN @Col2 subq2 ON subq.id=subq2.id
-	JOIN @Col3 subq3 ON subq.id=subq3.id
-	JOIN @Col4 subq4 ON subq.id=subq4.id
-	ORDER BY subq.id
-	PRINT(@TotalCol1Cnt)
-	PRINT(@TotalCol2Cnt)
-	PRINT(@TotalCol3Cnt)
-	PRINT(@TotalCol4Cnt)
-	*/
-	--todo gkb
-	--create temp tables up to BatchRowSize for all data types
-	--then optionally include them into each table based on their needs
-	--tricky part is 1 to 1 or 1 to Many keys between tables
-	--create a Column for DATE and DATETIME objects
+	DELETE FROM @tempNvarcharTable
+	INSERT INTO @tempNvarcharTable (id, val)
+		SELECT ROW_NUMBER() OVER (ORDER BY q1.val) as id, q1.val as val
+		FROM ##TEMP_KIND_OF_BUSINESS_CATG_TABLE q1
+		CROSS JOIN ##TEMP_KIND_OF_BUSINESS_CATG_TABLE q2
+		CROSS JOIN ##TEMP_KIND_OF_BUSINESS_CATG_TABLE q3
+		CROSS JOIN ##TEMP_KIND_OF_BUSINESS_CATG_TABLE q4
+	SELECT * FROM @tempNvarcharTable
+	SELECT COUNT(*) FROM @tempNvarcharTable
+	
+	DELETE FROM @loopCntTable
+	SET @ColCnt = (SELECT COUNT(*) FROM @tempNvarcharTable)
+	SET @LoopIdx = 0
+	SET @TotalLoopCnt = 0
+	WHILE @TotalLoopCnt < @BatchRowSize
+	BEGIN
+		SET @LoopCnt = @ColCnt / (CAST(100*RAND(CHECKSUM(NEWID())) AS INT) % 4 + 1)
+		INSERT INTO @loopCntTable(loopIdx, loopRowsCntStart, loopRowsCntEnd) 
+   	    	   VALUES(@LoopIdx, @TotalLoopCnt - 1, @TotalLoopCnt + @LoopCnt - 1)
+		SET	@TotalLoopCnt = @TotalLoopCnt + @LoopCnt
+		SET @LoopIdx = @LoopIdx + 1
+	END
+	TRUNCATE TABLE ##TEMP_ROWSET_KIND_OF_BUSINESS_CATGS
+	INSERT INTO ##TEMP_ROWSET_KIND_OF_BUSINESS_CATGS(id, val)
+		SELECT subq2.loopRowsCntStart + subq.id + 1 AS id, subq.val
+		FROM @TempNvarcharTable subq
+		CROSS APPLY (SELECT TOP(SELECT COUNT(*) FROM @loopCntTable) * FROM @loopCntTable) subq2
+		WHERE subq2.loopRowsCntStart + subq.id <= subq2.loopRowsCntEnd
+	SELECT COUNT(*) AS kindOfBusinessCatgsCnt FROM ##TEMP_ROWSET_KIND_OF_BUSINESS_CATGS
+	SELECT TOP(10000) * FROM ##TEMP_ROWSET_KIND_OF_BUSINESS_CATGS ORDER BY id
 END
 
 
+--execute these statemetns always as precondition to the stored procedure below as its needed by the dynamic sql usage
+DROP TABLE IF EXISTS ##TEMP_ROWSET_ALL_UNIQUE_INTS_STEP1
+CREATE TABLE ##TEMP_ROWSET_ALL_UNIQUE_INTS_STEP1
+(
+	id INT
+)
+
 SET NOCOUNT OFF
 EXEC dbo.GENERATE_FINAL_TEMP_DATA_FOR_OLTP
+
