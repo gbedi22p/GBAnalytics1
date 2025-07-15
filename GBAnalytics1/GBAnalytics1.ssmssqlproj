@@ -40,6 +40,18 @@
           <AssociatedConnUserName>sa</AssociatedConnUserName>
           <FullPath>001_oltp_step3.sql</FullPath>
         </FileNode>
+        <FileNode Name="001_oltp_step4.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:DESKTOP-RNTHCBQ:False:sa</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>DESKTOP-RNTHCBQ</AssociatedConnSrvName>
+          <AssociatedConnUserName>sa</AssociatedConnUserName>
+          <FullPath>001_oltp_step4.sql</FullPath>
+        </FileNode>
+        <FileNode Name="001_olap_step1.sql">
+          <AssociatedConnectionMoniker>8c91a03d-f9b4-46c0-a305-b5dcc79ff907:DESKTOP-RNTHCBQ:False:sa</AssociatedConnectionMoniker>
+          <AssociatedConnSrvName>DESKTOP-RNTHCBQ</AssociatedConnSrvName>
+          <AssociatedConnUserName>sa</AssociatedConnUserName>
+          <FullPath>001_olap_step1.sql</FullPath>
+        </FileNode>
       </Items>
     </LogicalFolder>
     <LogicalFolder Name="Miscellaneous" Type="3" Sorted="true">

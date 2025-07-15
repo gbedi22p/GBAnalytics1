@@ -1,0 +1,74 @@
+July 15, 2025
+
+The purpose of this project is to demonstrate knowledge of both OLTP and OLAP databases.
+Both databases are completedly created with T-SQL using Microsoft SQL Server Developer Edition 2025
+
+001_oltp_step.sql.
+Running all of the SQL code in here creates global temp tables with various datatypes
+
+001_oltp_step2.sql
+Running this stored procedure code creates equivalent ROWSETs of the same various data types with some random-ness applied to the number of rows of this data
+
+001_oltp_step3.sql
+Running this file, creates all of the OLTP tables necessary for storing the real operational database tables
+
+001_oltp_step4.sql
+Running this file, takes the global ROWSET temp variables and stores them into the real db tables stored from step 3
+
+001_olap_step1.sql
+Running this file, creates the OLAP data which can be used by reporting tools, in this case we use Power BI
+
+See PowerBI/PowerBI_Resellers_01.pbix
+A initial version of this PDF version of this file is avaible in the PowerBI folder:  PowerBI_Resellers_01.pdf
+
+Planned BI Metrics will be:
+1.  Total Sales = SUM(Sales[SalesAmount])
+2.  Total Profit = SUM(Sales[Profit])
+3.  Profit Margin % = DIVIDE([Total Profit], [Total Sales], 0)
+4.  Distinct Customers = DISTINCTCOUNT(Sales[CustomerID])
+5.  Avg Sales per Customer = DIVIDE([Total Sales], [Distinct Customers], 0)
+6.  Total Orders = COUNT(Sales[OrderID])
+7.  Average Order Value = DIVIDE([Total Sales], [Total Orders], 0)
+8.  Cumulative Sales (Running Total) = CALCULATE([Total Sales], 
+                                                 FILTER(
+                                                     ALLSELECTED(Date[Date]),
+                                                     Date[Date] <= MAX(Date[Date])
+                                                     )
+                                                 )
+9.  Sales Last Year = CALCULATE([Total Sales], 
+                                SAMEPERIODLASTYEAR(Date[Date]))
+10.  YoY Growth % = DIVIDE([Total Sales] - [Sales LY], [Sales LY], 0)
+11.  Sales Previous Month = CALCULATE([Total Sales],
+                                      PREVIOUSMONTH(Date[Date]))
+12.  MoM Growth % = DIVIDE([Total Sales] - [Sales PM], [Sales PM], 0)
+13.  Sales for Selected Category
+     Food Sales = CALCULATE([Total Sales], Sales[Category] = 'Food')
+14.  Top 5 Products by Sales
+     Create a calculated table:
+     TopProducts =
+     TOPN(5, SUMMARIZE(Sales, Sales[ProductName], 'TotalSales', [Total Sales]),
+          [Total Sales], DESC)
+15.  Customer Retention Flag
+     Is Returning Customer =
+     IF(CALCULATE(COUNT(Sales[OrderID]), 
+        ALLEXCEPT(Sales, Sales[CustomerID])) > 1, 1, 0)
+16.  % of Total Sales = DIVIDE([Total Sales], CALCULATE([Total Sales], ALL(Sales)), 0)
+17.  Rank by Revenue
+     Sales Rank = RANKX(ALL(Sales[ProductName]), [Total Sales], , DESC)
+18.  Customer Churn %
+     Churn Rate = DIVIDE([Lost Customers], [Total Customers Last Month], 0)
+19.  Time to First Purchase
+     First Purchase Date = CALCULATE(MIN(Sales[OrderDate]),
+                                     ALLEXCEPT(Sales, Sales[CustomerID])
+                                    ) 
+20.  IF + SWITCH for KPI Color Logic
+     KPI Status =
+     SWITCH(
+            TRUE(),
+            [Total Sales] >= 1000000, 'Green',
+            [Total Sales] >= 5000000, 'Yellow',
+            'Red')
+
+
+GB github profile:
+https://tinyurl.com/bdfepup3

@@ -32,6 +32,8 @@ BEGIN
 	TRUNCATE TABLE RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER
 	TRUNCATE TABLE RESELLERS_2ND_HAND_STUFF_TOKENS
 
+	DECLARE @MaxBatchRowSize INT = 500000
+	DECLARE @BatchRowSize INT = 0
 	DECLARE @col1IdOffset INT = 0
 	DECLARE @col2IdOffset INT = 0
 	DECLARE @col3IdOffset INT = 0
@@ -69,8 +71,6 @@ BEGIN
 		SET @TotalLoopsIdx = @TotalLoopsIdx + 1
 	END
 
-	DECLARE @MaxBatchRowSize INT = 150000
-	DECLARE @BatchRowSize INT = 0
 	--handle dims and simple transaction table creation first
 	--1. create the taxes table
 	SET @BatchRowSize = 2500  --max 500 cities
@@ -611,7 +611,7 @@ BEGIN
 			JOIN @FKTokens_UserIdTable col8 ON col1.id = col8.id + @col6IdOffset
 		SET @TotalLoopsIdx = @TotalLoopsIdx + 1
 	END
-5
+
 END
 
 
