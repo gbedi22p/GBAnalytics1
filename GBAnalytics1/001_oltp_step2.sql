@@ -51,7 +51,7 @@ BEGIN
 	TRUNCATE TABLE ##TEMP_ROWSET_KIND_OF_BUSINESS_CATGS
 
 	DECLARE @loopCntTable TABLE(loopIdx INT, loopRowsCntStart INT, loopRowsCntEnd INT)
-	DECLARE @BatchRowSize INT = 1000000
+	DECLARE @BatchRowSize INT = 500000
 	DECLARE @ColCnt INT = 0
 	DECLARE @TotalColCnt INT = 0
 	DECLARE @LoopIdx INT = 0

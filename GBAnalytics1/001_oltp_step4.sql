@@ -1,4 +1,5 @@
 Use Resellers2ndHandStuffOLTP
+
 SET NOCOUNT OFF
 
 --DOP caused an issue earlier so this is way to check te DOP at the database level
@@ -200,7 +201,7 @@ BEGIN
 	--4. create the table for the resellers (again doesnt depend on another fact or dim table)
 	SET @TotalLoops = 1
 	SET @TotalLoopsIdx = 0
-	SET @BatchRowSize = @MaxBatchRowSize / 10
+	SET @BatchRowSize = @MaxBatchRowSize / 100
 	WHILE @TotalLoopsIdx < @TotalLoops
 	BEGIN
 		SET @col1IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
@@ -266,12 +267,13 @@ BEGIN
 	SELECT COUNT(*) AS resellersCnt FROM RESELLERS_2ND_HAND_STUFF_RESELLERS 
 
 	--access the resellers ids from RESELLERS_2ND_HAND_STUFF_RESELLERS
-	DECLARE @FKItemSections_TotalRowCnt INT = 0
 	--have between 8 and 12 sections for every reseller
+	DECLARE @FKItemSections_TotalRowCnt INT = 0
 	SET @FKItemSections_TotalRowCnt = (SELECT COUNT(*) FROM RESELLERS_2ND_HAND_STUFF_RESELLERS) * 
 	                                  (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 4 + 8)
 	DECLARE @tempFKItemSections_ResellersIdTable TABLE (id INT, resellers_id INT)
 	DECLARE @FKItemSections_ResellersIdTable TABLE (id INT, resellers_id INT)
+	DELETE FROM @tempFKItemSections_ResellersIdTable
 	INSERT INTO @tempFKItemSections_ResellersIdTable(id, resellers_id)
 		SELECT 0, id AS resellers_id FROM RESELLERS_2ND_HAND_STUFF_RESELLERS ORDER BY NEWID()
 	SELECT @FKItemSections_TotalRowCnt AS FKItemSections_TotalRowCnt, 
@@ -279,19 +281,21 @@ BEGIN
 	SELECT COUNT(*) AS tempFKItemSectionsResellersIdTableCnt FROM @tempFKItemSections_ResellersIdTable
 	SELECT TOP(1000) * FROM @tempFKItemSections_ResellersIdTable
 	
+	DELETE FROM @FKItemSections_ResellersIdTable
 	INSERT INTO @FKItemSections_ResellersIdTable(id, resellers_id)
 		SELECT TOP(@FKItemSections_TotalRowCnt) ROW_NUMBER() OVER (ORDER BY NEWID()) AS id,
 		                                        subq.resellers_id AS resellers_id 
 		FROM @tempFKItemSections_ResellersIdTable subq
 		CROSS APPLY (SELECT TOP(@FKItemSections_TotalRowCnt / (SELECT COUNT(*) + 1 FROM @tempFKItemSections_ResellersIdTable)) 
 		             resellers_id FROM @tempFKItemSections_ResellersIdTable) subq2
+	SELECT * FROM @FKItemSections_ResellersIdTable ORDER BY resellers_id
 	SELECT COUNT(*) AS FKItemSectionsResellersIdTableCnt FROM @FKItemSections_ResellersIdTable
 	SELECT TOP(1000) * FROM @FKItemSections_ResellersIdTable ORDER BY resellers_id
 
 	--5. create table for RESELLERS_2ND_HAND_STUFF_ITEMSECTIONS
 	SET @TotalLoops = 1
 	SET @TotalLoopsIdx = 0
-	--have between 5 and 15 item sections for every reseller
+	--we want between 5 and 15 item sections for every reseller
 	SET @BatchRowSize = (SELECT COUNT(*) FROM RESELLERS_2ND_HAND_STUFF_RESELLERS) * 
 	                    (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 10 + 5)
 	WHILE @TotalLoopsIdx < @TotalLoops
@@ -318,16 +322,38 @@ BEGIN
 
 
 	--5. setup table for RESELLERS_2ND_HAND_STUFF_ITEMS
+	--avg 5 to 15 items per section (also get the resellers_id from it)
+	DECLARE @FKItems_TotalRowCnt INT = 0
+	SET @FKItems_TotalRowCnt = (SELECT COUNT(*) FROM RESELLERS_2ND_HAND_STUFF_ITEMSECTIONS) * 
+	                           (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 5 + 10)
+	DECLARE @tempFKItems_ItemSectionsIdTable TABLE (id INT, item_sections_id INT, resellers_id INT)
+	DECLARE @FKItems_ItemSectionsIdTable TABLE (id INT, item_sections_id INT, resellers_id INT)
+	DELETE FROM @tempFKItems_ItemSectionsIdTable
+	INSERT INTO @tempFKItems_ItemSectionsIdTable(id, item_sections_id, resellers_id)
+		SELECT 0, id AS item_sections_id, resellers_id AS resellers_id FROM RESELLERS_2ND_HAND_STUFF_ITEMSECTIONS ORDER BY NEWID()
+	SELECT @FKItems_TotalRowCnt AS FKItems_TotalRowCnt, 
+	       (SELECT COUNT(*) + 1 FROM @tempFKItems_ItemSectionsIdTable) AS itemSectionsIdTableCnt
+    (SELECT COUNT(*) + 1 FROM @tempFKItems_ItemSectionsIdTable GROUP BY item_sections_id)
+	SELECT COUNT(*) AS tempFKItemsItemSectionsIdTableCnt FROM @tempFKItemSections_ResellersIdTable
+	SELECT TOP(1000) * FROM @tempFKItems_ItemSectionsIdTable ORDER by resellers_id
 	
-	--generate resellers and section ids for these
-	--avg 800 and 1200 items for each single reseller id
-	--avg 10 items per section (the second ids should also be from a particular resller..?)
+	DELETE FROM @FKItems_ItemSectionsIdTable
+	INSERT INTO @FKItems_ItemSectionsIdTable(id, item_sections_id, resellers_id)
+		SELECT TOP(@FKItems_TotalRowCnt) ROW_NUMBER() OVER (ORDER BY NEWID()) AS id,
+		                                 subq.item_sections_id AS item_sections_id,
+		                                 subq.resellers_id AS resellers_id 
+		FROM @tempFKItems_ItemSectionsIdTable subq
+		CROSS APPLY (SELECT TOP(@FKItems_TotalRowCnt / (SELECT COUNT(*) + 1 FROM @tempFKItems_ItemSectionsIdTable)) 
+		             item_sections_id, resellers_id FROM @tempFKItems_ItemSectionsIdTable) subq2
+	SELECT * FROM @FKItems_ItemSectionsIdTable ORDER BY resellers_id
+	SELECT COUNT(*) AS FKItemsItemSectionsIdTableCnt FROM @FKItems_ItemSectionsIdTable
+	SELECT TOP(1000) * FROM @FKItems_ItemSectionsIdTable ORDER BY resellers_id
 		
 	SET @TotalLoops = 1 
 	SET @TotalLoopsIdx = 0
-	--have between 10 and 20 for every item section
+	--have between 10 and 20 items for every item section
 	SET @BatchRowSize = (SELECT COUNT(*) FROM RESELLERS_2ND_HAND_STUFF_ITEMSECTIONS) * 
-	                    (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 10 + 5)
+	                    (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 10 + 10)
 	WHILE @TotalLoopsIdx < @TotalLoops
 	BEGIN
 		SET @col1IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
@@ -346,31 +372,56 @@ BEGIN
 		INSERT INTO RESELLERS_2ND_HAND_STUFF_ITEMS(id, created_at, description, is_available, item_exists, section_id,
 										           name, price, req_cust, resellers_id, string_id, updated_at)
 			SELECT TOP(@BatchRowSize) col1.id + @TotalLoopsIdx * @BatchRowSize AS id, col2.val AS created_at, col3.val AS description, 
-			                          col4.val AS is_available, col5.val AS item_exists, col6.val AS section_id, col7.val AS name, 
-									  col8.val AS price, col9.val AS req_cust, col10.val AS resellers_id, col11.val AS string_id, col12.val as created_at
+			                          col4.val AS is_available, col5.val AS item_exists, col6col10.item_sections_id AS section_id, 
+									  col7.val AS name, col8.val AS price, col9.val AS req_cust, 
+									  col6col10.resellers_id AS resellers_id, col11.val AS string_id, col12.val as created_at
 			FROM ##TEMP_ROWSET_ALL_UNIQUE_INTS col1
 			JOIN ##TEMP_ROWSET_DATETIMES col2 ON col1.id = col2.id + @col1IdOffset
 			JOIN ##TEMP_ROWSET_TEMPWORDS col3 ON col1.id = col3.id + @col2IdOffset
 			JOIN ##TEMP_ROWSET_BOOLS col4 ON col1.id = col4.id + @col3IdOffset
 			JOIN ##TEMP_ROWSET_BOOLS col5 ON col1.id = col5.id + @col4IdOffset
-			JOIN ##TEMP_ROWSET_ALL_UNIQUE_INTS col6 ON col1.id = col6.id + @col5IdOffset
+			JOIN @FKItems_ItemSectionsIdTable col6col10 ON col1.id = col6col10.id
 			JOIN ##TEMP_ROWSET_TEMPWORDS col7 ON col1.id = col7.id + @col6IdOffset
 			JOIN ##TEMP_ROWSET_FLOATS_MED col8 ON col1.id = col8.id + @col7IdOffset
 			JOIN ##TEMP_ROWSET_BOOLS col9 ON col1.id = col9.id + @col8IdOffset
-			JOIN ##TEMP_ROWSET_ALL_UNIQUE_INTS col10 ON col1.id = col10.id + @col9IdOffset
 			JOIN ##TEMP_ROWSET_TEMPWORDS col11 ON col1.id = col11.id + @col10IdOffset
 			JOIN ##TEMP_ROWSET_DATETIMES col12 ON col1.id = col12.id + @col11IdOffset
 		SET @TotalLoopsIdx = @TotalLoopsIdx + 1
 	END
-	SELECT TOP(1000) * FROM RESELLERS_2ND_HAND_STUFF_ITEMS  -- WHERE id>500000 order by id
+	SELECT TOP(1000) * FROM RESELLERS_2ND_HAND_STUFF_ITEMS ORDER BY resellers_id, section_id  -- WHERE id>500000 order by id
 	SELECT COUNT(*) AS itemsCnt FROM RESELLERS_2ND_HAND_STUFF_ITEMS 
 
-	--todo: generate ids for foreign keys for ITEMS_IN_ORDER table
-	--need @FKItemsInOrders_ItemIdsTable
-	--and @FKItemsInOrders_ResellersIdsTable
+	--6.)  setup RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER table
+	--any given order would contain 2 to 7 items but many orders need to reuse same items
+	DECLARE @FKItemsInOrder_TotalRowCnt INT = 0
+	SET @FKItemsInOrder_TotalRowCnt = (SELECT COUNT(*) FROM RESELLERS_2ND_HAND_STUFF_ITEMS) / 
+	                                  (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 5 + 2)
+	DECLARE @tempFKItemsInOrder_ItemsIdTable TABLE (id INT, item_id INT, resellers_id INT)
+	DECLARE @FKItemsInOrder_ItemsIdTable TABLE (id INT, item_id INT, resellers_id INT)
+	DELETE FROM @tempFKItemsInOrder_ItemsIdTable
+	INSERT INTO @tempFKItemsInOrder_ItemsIdTable(id, item_id, resellers_id)
+		SELECT 0, id AS item_id, resellers_id AS resellers_id FROM RESELLERS_2ND_HAND_STUFF_ITEMS ORDER BY NEWID()
+	SELECT @FKItemsInOrder_TotalRowCnt AS FKItemsInOrder_TotalRowCnt, 
+	       (SELECT COUNT(*) + 1 FROM @tempFKItemsInOrder_ItemsIdTable) AS itemsIdTableCnt
+    SELECT COUNT(*) + 1 AS itemIdCnt FROM @tempFKItemsInOrder_ItemsIdTable GROUP BY item_id
+	SELECT COUNT(*) AS tempFKItemsInOrderItemsIdTableCnt FROM @tempFKItemsInOrder_ItemsIdTable
+	SELECT TOP(1000) * FROM @tempFKItemsInOrder_ItemsIdTable ORDER by item_id
+	
+	DELETE FROM @FKItemsInOrder_ItemsIdTable
+	INSERT INTO @FKItemsInOrder_ItemsIdTable(id, item_id, resellers_id)
+		SELECT TOP(@FKItemsInOrder_TotalRowCnt) ROW_NUMBER() OVER (ORDER BY NEWID()) AS id,
+		                                 subq.item_id AS item_id,
+		                                 subq.resellers_id AS resellers_id 
+		FROM @tempFKItemsInOrder_ItemsIdTable subq
+		--note:  dont need to cross apply this since @FKItemsInOrder_TotalRowCnt is < total count in ItemsIdTable
+		--CROSS APPLY (SELECT TOP((SELECT COUNT(*) + 1 FROM @tempFKItemsInOrder_ItemsIdTable) / @FKItemsInOrder_TotalRowCnt) 
+		--             item_id, resellers_id FROM @tempFKItemsInOrder_ItemsIdTable) subq2
+	
+	SELECT * FROM @FKItemsInOrder_ItemsIdTable ORDER BY item_id
+	SELECT COUNT(*) AS FKItemsInOrderItemsIdTableCnt FROM @FKItemsInOrder_ItemsIdTable
+	SELECT TOP(1000) * FROM @FKItemsInOrder_ItemsIdTable ORDER BY item_id
 
-	--todo:  RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER
-	SET @BatchRowSize = @MaxBatchRowSize / 1.2
+	SET @BatchRowSize = (SELECT COUNT(*) + 1 FROM @FKItemsInOrder_ItemsIdTable)
 	SET @TotalLoops = 1
 	SET @TotalLoopsIdx = 0
 	WHILE @TotalLoopsIdx < @TotalLoops
@@ -378,80 +429,63 @@ BEGIN
 		SET @col1IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
 		SET @col2IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
 		SET @col3IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col4IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col5IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col6IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col7IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col8IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col9IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col8IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col9IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col10IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col11IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col12IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col13IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col14IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col15IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col16IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col17IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col18IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col18IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col19IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col20IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		INSERT INTO RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDERS(id, order_id, count, pickup_status, price, item_id, resellers_id)
-			SELECT TOP(@BatchRowSize) @TotalLoopsIdx * @BatchRowSize + col1.id as id, NULL as order_id, col3.val as pickup_status,
-			                          col4.val as price, col5.val as item_id, col6.val as resellers_id
+		INSERT INTO RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER(id, order_id, count, pickup_status, price, item_id, resellers_id)
+			SELECT TOP(@BatchRowSize) @TotalLoopsIdx * @BatchRowSize + col1.id as id, NULL as order_id, col3.val as count,
+			                          col4.val as pickup_status, col5.val as price, 
+									  col6col7.item_id as item_id, col6col7.resellers_id as resellers_id
 			FROM ##TEMP_ROWSET_ALL_UNIQUE_INTS col1
 			--order_id starts off hard coded as NULL, todo: update it later if needed..?
 			--JOIN ##TEMP_ROWSET_ALL_UNIQUE_INTS col2 ON col1.id = col2.id + @col1IdOffset
-			JOIN ##TEMP_ROWSET_SINGLE_INTS col3 ON col1.id = col3.id + @col2IdOffset
-			JOIN ##TEMP_ROWSET_BOOLS col4 ON col1.id = col4.id + @col3IdOffset
-			JOIN ##TEMP_ROWSET_FLOATS_MED col5 ON col1.id = col5.id + @col4IdOffset
-			JOIN @FKItemsInOrders_ItemIdsTable col6 ON col1.id = col6.id
-			JOIN @FKItemsInOrders_ResellersIdsTable col7 ON col1.id = col7.id
+			JOIN ##TEMP_ROWSET_SINGLE_INTS col3 ON col1.id = col3.id + @col1IdOffset
+			JOIN ##TEMP_ROWSET_BOOLS col4 ON col1.id = col4.id + @col2IdOffset
+			JOIN ##TEMP_ROWSET_FLOATS_MED col5 ON col1.id = col5.id + @col3IdOffset
+			JOIN @FKItemsInOrder_ItemsIdTable col6col7 ON col1.id = col6col7.id
 			
 		SET @TotalLoopsIdx = @TotalLoopsIdx + 1
 	END
-	SELECT TOP(1000) * FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER  -- WHERE id>500000 order by id
-	SELECT COUNT(*) AS ordersCnt FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER 
+	SELECT COUNT(*) AS itemsInOrderCnt FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER 
+	SELECT TOP(1000) * FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER  -- WHERE id > 500000 order by id
+
 
 	--7. create the table for the ORDERS
 	--generate the user ids which will be used in the RESELLERS_2ND_HAND_STUFF_ORDERS
-	--DECLARE @BatchRowSize INT = 500000
-	--in our case, we will have many orders done by just a few users
-	DECLARE @FKOrders_UserIdRowCnt INT = 0
-	--create a random amount of users between @BatchRowSize/30 and @BatchRowSize/80
-	SET @FKOrders_UserIdRowCnt = @MaxBatchRowSize / (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 80 + 30)
+	--in our case, we will have between 1/3 and 1/5 of users each have an order
+	DECLARE @FKOrders_TotalUsersRowCnt INT = 0
+	SET @FKOrders_TotalUsersRowCnt = (SELECT COUNT(*) FROM RESELLERS_2ND_HAND_STUFF_USERS) / 
+	                                 (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 2 + 3)
 	DECLARE @tempFKOrders_UserIdTable TABLE (id INT, user_id INT)
 	DECLARE @FKOrders_UserIdTable TABLE (id INT, user_id INT)
+	DELETE FROM @tempFKOrders_UserIdTable
 	INSERT INTO @tempFKOrders_UserIdTable(id, user_id)
-		SELECT TOP(@FKOrders_UserIdRowCnt) 0, id AS user_id FROM RESELLERS_2ND_HAND_STUFF_USERS ORDER BY NEWID()
+		SELECT 0, id AS user_id FROM RESELLERS_2ND_HAND_STUFF_USERS ORDER BY NEWID()
 	SELECT COUNT(*) AS tempFKOrdersUserIdTableCnt FROM @tempFKOrders_UserIdTable
 	SELECT TOP(1000) * FROM @tempFKOrders_UserIdTable
 	--reuse some of the unique user_ids when creating the orders, i.e. some users create multiple orders
+	DELETE FROM @FKOrders_UserIdTable
 	INSERT INTO @FKOrders_UserIdTable(id, user_id)
-		SELECT TOP(@MaxBatchRowSize) ROW_NUMBER() OVER (ORDER BY NEWID()),
-		                             subq.user_id 
+		SELECT TOP(@FKOrders_TotalUsersRowCnt) ROW_NUMBER() OVER (ORDER BY NEWID()),
+		                                       subq.user_id 
 		FROM @tempFKOrders_UserIdTable subq
-		CROSS APPLY (SELECT TOP(@MaxBatchRowSize / (SELECT COUNT(*) + 1 FROM @tempFKOrders_UserIdTable)) 
-		             user_id FROM @tempFKOrders_UserIdTable) subq2
+		--todo:  confirm dont have to do a cross apply since the userIdTable has more records then the totalUsers required
+		--CROSS APPLY (SELECT TOP(@FKOrders_TotalUsersRowCnt / (SELECT COUNT(*) + 1 FROM @tempFKOrders_UserIdTable)) 
+		--             user_id FROM @tempFKOrders_UserIdTable) subq2
 	SELECT COUNT(*) AS fkOrdersUserIdTableCnt FROM @FKOrders_UserIdTable
-	SELECT TOP(25000) * FROM @FKOrders_UserIdTable ORDER BY user_id
+	SELECT TOP(1000) * FROM @FKOrders_UserIdTable ORDER BY id
 
-
-	--1 to 1 relation, for every one order there would have to be an items records containing the items for that order
-	DECLARE @FKOrders_ItemsInOrderIdRowCnt INT = (SELECT COUNT(*) FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER)
+	--1 to 1 relation, for every one order there would have to be only one items records containing the items for that order
+	--todo:  simpler case is only 1 item in every order_id, but I think it realistically be 2-7 items
+	DECLARE @FKOrders_ItemsInOrderTotalRowCnt INT = (SELECT COUNT(*) FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER)
+	SELECT @FKOrders_ItemsInOrderTotalRowCnt
 	DECLARE @FKOrders_ItemsInOrderIdTable TABLE(id INT, items_in_order_id INT)
+	DELETE FROM @FKOrders_ItemsInOrderIdTable
 	INSERT INTO @FKOrders_ItemsInOrderIdTable(id, items_in_order_id)
-		SELECT TOP(@FKOrders_ItemsInOrderIdRowCnt) ROW_NUMBER OVER (ORDER BY NEWID()),
-		                                           id AS items_in_order_id
+		SELECT TOP(@FKOrders_ItemsInOrderTotalRowCnt) ROW_NUMBER() OVER (ORDER BY NEWID()),
+		                                              id AS items_in_order_id
 		FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER
 	SELECT COUNT(*) AS fkOrdersItemsInOrderIdTableCnt FROM @FKOrders_ItemsInOrderIdTable
 	SELECT TOP(1000) * FROM @FKOrders_ItemsInOrderIdTable ORDER BY items_in_order_id
 
-	--todo: we will have to go back and update the order_id so we need a mapping of this
-	--
-	SET @BatchRowSize = @MaxBatchRowSize / 1.2
+	SET @BatchRowSize = @FKOrders_ItemsInOrderTotalRowCnt
 	SET @TotalLoops = 1
 	SET @TotalLoopsIdx = 0
 	WHILE @TotalLoopsIdx < @TotalLoops
@@ -478,18 +512,16 @@ BEGIN
 		SET @col18IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
 		SET @col18IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
 		SET @col19IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		SET @col20IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		--fact table maybe should be done after all DIMs are done..?
 		INSERT INTO RESELLERS_2ND_HAND_STUFF_ORDERS(id, created_at, discount_percent, item_price, items_in_order_id,
 		                                            nonce, payment_status, price, service_fee, status, time_slot, updated_at, 
 													user_id, user_ordering_location_address1, user_ordering_location_city,
 													user_ordering_location_location, user_ordering_location_place,
 													user_ordering_location_state, user_ordering_location_zip)
 			SELECT TOP(@BatchRowSize) @TotalLoopsIdx * @BatchRowSize + col1.id AS id, col2.val AS created_at, col3.val AS discount_percent,
-			                          col4.val AS item_price, col5.val AS items_in_order_id, CONCAT(col6a.val, col6b.val) AS nonce,
+			                          col4.val AS item_price, col5.items_in_order_id AS items_in_order_id, col6.val AS nonce,
 			                          col7.val AS payment_status, col8.val AS price, col9.val AS service_fee, col10.val AS status, 
-									  col11.val AS time_slot, col12.val AS updated_at, col13.val AS user_id,
-									  col14.val AS user_ordering_location_address1, col15.val AS user_ordering_location_city, 
+									  col11.val AS time_slot, col12.val AS updated_at, col13.user_id AS user_id,
+									  col14.val AS user_ordering_location_address1, col15.city AS user_ordering_location_city, 
 									  col16.val AS user_ordering_location_location, col17.val AS user_ordering_location_place, 
 									  col18.state_val AS user_ordering_location_state, col19.zip_code AS user_ordering_location_zip
 			FROM ##TEMP_ROWSET_ALL_UNIQUE_INTS col1
@@ -497,8 +529,7 @@ BEGIN
 			JOIN ##TEMP_ROWSET_INTS_2_DIGITS col3 ON col1.id = col3.id + @col2IdOffset
 			JOIN ##TEMP_ROWSET_FLOATS_MED col4 ON col1.id = col4.id + @col3IdOffset
 			JOIN @FKOrders_ItemsInOrderIdTable col5 ON col1.id = col5.id + @col4IdOffset
-			JOIN ##TEMP_ROWSET_INTS_4_DIGITS col6a ON col1.id = col6a.id + @col5IdOffset
-			JOIN ##TEMP_ROWSET_TEMPWORDS col6b ON col1.id = col6b.id + @col6IdOffset
+			JOIN ##TEMP_ROWSET_INTS_4_DIGITS col6 ON col1.id = col6.id + @col5IdOffset
 			JOIN ##TEMP_ROWSET_BOOLS col7 ON col1.id = col7.id + @col7IdOffset
 			JOIN ##TEMP_ROWSET_FLOATS_MED col8 ON col1.id = col8.id + @col8IdOffset
 			JOIN ##TEMP_ROWSET_FLOATS_TINY col9 ON col1.id = col9.id + @col9IdOffset
@@ -512,14 +543,75 @@ BEGIN
 			JOIN ##TEMP_ROWSET_TEMPWORDS col17 ON col1.id = col17.id + @col17IdOffset
 			JOIN ##TEMP_ROWSET_STATES col18 ON col1.id = col18.id + @col18IdOffset
 			JOIN ##TEMP_ROWSET_ZIPS col19 ON col1.id = col19.id + @col19IdOffset
-			WHERE col3.val <= 50
+			--WHERE col3.val <= 50
 
 		SET @TotalLoopsIdx = @TotalLoopsIdx + 1
 	END
-	SELECT * FROM RESELLERS_2ND_HAND_STUFF_ORDERS  -- WHERE id>500000 order by id
+	--special case, put ceiling above 50 for all discount_percent
+	UPDATE RESELLERS_2ND_HAND_STUFF_ORDERS  SET discount_percent = 50 
+	WHERE discount_percent > 50
+	
+	SELECT * FROM RESELLERS_2ND_HAND_STUFF_ORDERS order by items_in_order_id  -- WHERE id>500000 order by id
 	SELECT COUNT(*) AS ordersCnt FROM RESELLERS_2ND_HAND_STUFF_ORDERS 
 
+	--we have to go back and update the order_id in the ItemsInOrder table
+	DECLARE @tempFKItemsInOrder_OrderIdTable TABLE (order_id INT, items_in_order_id INT)
+	DELETE FROM @tempFKItemsInOrder_OrderIdTable
+	INSERT INTO @tempFKItemsInOrder_OrderIdTable(order_id, items_in_order_id)
+		SELECT id AS order_id, items_in_order_id AS items_in_order_id FROM RESELLERS_2ND_HAND_STUFF_ORDERS
+	SELECT * FROM @tempFKItemsInOrder_OrderIdTable ORDER BY items_in_order_id
+	SELECT COUNT(*) FROM @tempFKItemsInOrder_OrderIdTable
 
+	SELECT * FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER ORDER BY id
+	SELECT * FROM @tempFKItemsInOrder_OrderIdTable ORDER BY items_in_order_id
+
+	--go back to ITEMS_IN_ORDER table to update the order_id in it
+	MERGE INTO RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER destT
+	USING @tempFKItemsInOrder_OrderIdTable sourceT
+	ON destT.id = sourceT.items_in_order_id
+	WHEN MATCHED THEN
+		UPDATE SET destT.order_id  = sourceT.order_id;
+	
+	SELECT * FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER ORDER BY order_id
+	SELECT COUNT(*) AS itemsInOrderCnt FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER
+
+	--8. create the table for RESELLERS_2ND_HAND_STUFF_TOKENS
+	--generate 1 token for every 1 user_id
+	DECLARE @FKTokens_UsersTotalRowCnt INT = (SELECT COUNT(*) FROM RESELLERS_2ND_HAND_STUFF_USERS)
+	DECLARE @FKTokens_UserIdTable TABLE(id INT, user_id INT)
+	DELETE FROM @FKTokens_UserIdTable
+	INSERT INTO @FKTokens_UserIdTable(id, user_id)
+		SELECT TOP(@FKTokens_UsersTotalRowCnt) ROW_NUMBER() OVER (ORDER BY NEWID()),
+		                                       id AS user_id
+		FROM RESELLERS_2ND_HAND_STUFF_USERS
+	SELECT COUNT(*) AS fkTokensUserIdTableCnt FROM @FKTokens_UserIdTable
+	SELECT TOP(1000) * FROM @FKTokens_UserIdTable ORDER BY user_id
+
+	SET @BatchRowSize = @FKTokens_UsersTotalRowCnt
+	SET @TotalLoops = 1
+	SET @TotalLoopsIdx = 0
+	WHILE @TotalLoopsIdx < @TotalLoops
+	BEGIN
+		SET @col1IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
+		SET @col2IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
+		SET @col3IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
+		SET @col4IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
+		SET @col5IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
+		SET @col6IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
+		INSERT INTO RESELLERS_2ND_HAND_STUFF_TOKENS(id, blacklisted, created_at, expires, token, updated_at, user_name, user_id)
+			SELECT TOP(@BatchRowSize) @TotalLoopsIdx * @BatchRowSize + col1.id AS id, col2.val AS blacklisted, col3.val AS created_at, 
+			                          DATEADD(DAY, 7, col3.val) AS expires, CONCAT(col5a.val, col5b.val) AS token, 
+									  DATEADD(DAY, 10, col3.val) AS updated_at, col7.val AS user_name, col8.user_id AS user_id
+			FROM ##TEMP_ROWSET_ALL_UNIQUE_INTS col1
+			JOIN ##TEMP_ROWSET_BOOLS col2 ON col1.id = col2.id + @col1IdOffset
+			JOIN ##TEMP_ROWSET_DATETIMES col3 ON col1.id = col3.id + @col2IdOffset
+			JOIN ##TEMP_ROWSET_TEMPWORDS col5a ON col1.id = col5a.id + @col3IdOffset
+			JOIN ##TEMP_ROWSET_INTS_4_DIGITS col5b ON col1.id = col5b.id + @col4IdOffset
+			JOIN ##TEMP_ROWSET_TEMPWORDS col7 ON col1.id = col7.id + @col5IdOffset
+			JOIN @FKTokens_UserIdTable col8 ON col1.id = col8.id + @col6IdOffset
+		SET @TotalLoopsIdx = @TotalLoopsIdx + 1
+	END
+5
 END
 
 
