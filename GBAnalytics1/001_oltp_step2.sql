@@ -1,7 +1,9 @@
+--1. execute these three statements first
 Use Resellers2ndHandStuffOLTP
 SET NOCOUNT OFF
 DROP PROCEDURE [dbo].GENERATE_FINAL_TEMP_DATA_FOR_OLTP
 
+--2.  create this procedure second
 CREATE OR ALTER PROCEDURE [dbo].GENERATE_FINAL_TEMP_DATA_FOR_OLTP
 WITH EXECUTE AS OWNER
 AS
@@ -638,7 +640,7 @@ BEGIN
 END
 
 
---execute these statemetns always as precondition to the stored procedure below as its needed by the dynamic sql usage
+--3.  finally execute these statemetns always as precondition to the stored procedure below as its needed by the dynamic sql usage
 DROP TABLE IF EXISTS ##TEMP_ROWSET_ALL_UNIQUE_INTS_STEP1
 CREATE TABLE ##TEMP_ROWSET_ALL_UNIQUE_INTS_STEP1
 (

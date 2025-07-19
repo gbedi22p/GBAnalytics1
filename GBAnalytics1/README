@@ -1,9 +1,11 @@
 July 15, 2025
 
+
 The purpose of this project is to demonstrate knowledge of both OLTP and OLAP databases.
 Both databases are completedly created with T-SQL using Microsoft SQL Server Developer Edition 2025
 
-001_oltp_step.sql.
+In GBAnalytics1 folder
+001_oltp_step1.sql
 Running all of the SQL code in here creates global temp tables with various datatypes
 
 001_oltp_step2.sql
@@ -13,15 +15,17 @@ Running this stored procedure code creates equivalent ROWSETs of the same variou
 Running this file, creates all of the OLTP tables necessary for storing the real operational database tables
 
 001_oltp_step4.sql
-Running this file, takes the global ROWSET temp variables and stores them into the real db tables stored from step 3
+Running this file, takes the global ROWSET temp variables and stores them into the real db tables stored from step 3 file.
 
 001_olap_step1.sql
 Running this file, creates the OLAP data which can be used by reporting tools, in this case we use Power BI
 
+
 See PowerBI/PowerBI_Resellers_01.pbix
 A initial version of this PDF version of this file is avaible in the PowerBI folder:  PowerBI_Resellers_01.pdf
 
-Planned BI Metrics will be:
+Next Steps will be to create a dashboard with ALL of the following
+Planned BI Metrics AND also to go back to the original OLTP data and shape the data so that sensible retention curves could be created.
 1.  Total Sales = SUM(Sales[SalesAmount])
 2.  Total Profit = SUM(Sales[Profit])
 3.  Profit Margin % = DIVIDE([Total Profit], [Total Sales], 0)

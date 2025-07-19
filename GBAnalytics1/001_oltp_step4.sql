@@ -1,5 +1,4 @@
 Use Resellers2ndHandStuffOLTP
-
 SET NOCOUNT OFF
 
 --DOP caused an issue earlier so this is way to check te DOP at the database level
@@ -32,7 +31,7 @@ BEGIN
 	TRUNCATE TABLE RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER
 	TRUNCATE TABLE RESELLERS_2ND_HAND_STUFF_TOKENS
 
-	DECLARE @MaxBatchRowSize INT = 500000
+	DECLARE @MaxBatchRowSize INT = 100000
 	DECLARE @BatchRowSize INT = 0
 	DECLARE @col1IdOffset INT = 0
 	DECLARE @col2IdOffset INT = 0
@@ -392,7 +391,8 @@ BEGIN
 	SELECT COUNT(*) AS itemsCnt FROM RESELLERS_2ND_HAND_STUFF_ITEMS 
 
 	--6.)  setup RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER table
-	--any given order would contain 2 to 7 items but many orders need to reuse same items
+	--todo: not all items will have been ordered AND also for now only one item in each order
+	--      later on consider having multiple items in a single order
 	DECLARE @FKItemsInOrder_TotalRowCnt INT = 0
 	SET @FKItemsInOrder_TotalRowCnt = (SELECT COUNT(*) FROM RESELLERS_2ND_HAND_STUFF_ITEMS) / 
 	                                  (CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 5 + 2)
@@ -429,12 +429,16 @@ BEGIN
 		SET @col1IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
 		SET @col2IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
 		SET @col3IdOffset = (SELECT TOP(1) id FROM @tempIdOffsetTable ORDER BY NEWID())
-		INSERT INTO RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER(id, order_id, count, pickup_status, price, item_id, resellers_id)
-			SELECT TOP(@BatchRowSize) @TotalLoopsIdx * @BatchRowSize + col1.id as id, NULL as order_id, col3.val as count,
-			                          col4.val as pickup_status, col5.val as price, 
-									  col6col7.item_id as item_id, col6col7.resellers_id as resellers_id
+		INSERT INTO RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER(id, order_id, count, pickup_status, 
+		                                                    item_cost, item_price, item_id, resellers_id)
+			SELECT TOP(@BatchRowSize) @TotalLoopsIdx * @BatchRowSize + col1.id AS id, NULL AS order_id, col3.val AS count,
+			                          col4.val AS pickup_status, 
+									  CAST((CAST(100*RAND(ABS(CHECKSUM(NEWID()))) AS INT) % 20 + 60) / 100.0 AS FLOAT) * col5.val AS item_cost,
+									  --item_cost will be between 60 and 80% of the item_price
+									  col5.val AS item_price, 
+									  col6col7.item_id AS item_id, col6col7.resellers_id AS resellers_id
 			FROM ##TEMP_ROWSET_ALL_UNIQUE_INTS col1
-			--order_id starts off hard coded as NULL, todo: update it later if needed..?
+			--order_id starts off hard coded as NULL, update it later once orders are created
 			--JOIN ##TEMP_ROWSET_ALL_UNIQUE_INTS col2 ON col1.id = col2.id + @col1IdOffset
 			JOIN ##TEMP_ROWSET_SINGLE_INTS col3 ON col1.id = col3.id + @col1IdOffset
 			JOIN ##TEMP_ROWSET_BOOLS col4 ON col1.id = col4.id + @col2IdOffset
@@ -444,7 +448,40 @@ BEGIN
 		SET @TotalLoopsIdx = @TotalLoopsIdx + 1
 	END
 	SELECT COUNT(*) AS itemsInOrderCnt FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER 
-	SELECT TOP(1000) * FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER  -- WHERE id > 500000 order by id
+	SELECT TOP(1000) * FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER
+
+
+	--todo:  decide whether I should move this code to a stored procedure which can be used 
+	--       to add more orders to the OLTP db on a semi-daily basis or can be used to do retention curve building
+	--to make ITEMS_IN_ORDER and ORDERS tables seem to be more realistic
+	--we will linearly increase the orders over time, but with the same users ordering
+	--this will help create the appearance of retention over time of the same users ordering 
+	--more and more as they become more satisified with the platform
+	--1.  calculate slope and other temp variables
+	--2.  then when the FK arrays are created below for _ORDERS table it will already have the expanded ITEMS_IN_ORDER
+	--3.  after initial _ORDERS table creation, then add the same number of rows there as rows added to ITEMS_IN_ORDER
+	--add a decreasing amount of rows from earliest timestamp until current date
+	--this will indicate a slow linear churn
+	--do this the same way as step2:  loop from start-date to end-date with 120 month-years from 2016 to 2025
+	--120 rows of: start-date to slope * total_rows_to_add 
+	--slope = change_in_months / change_in_rows
+	--then cross_join existing orders table with this, and modify with some new value offsets for new data?
+	DECLARE @FKOrders_ItemsInOrderTotalRowCnt INT = (SELECT COUNT(*) FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER)
+	DECLARE @TotalOrdersToAdd INT = @FKOrders_ItemsInOrderTotalRowCnt
+	DECLARE @NumDaysRange INT = DATEDIFF(DAY, '01/01/2016', '08/31/2025')
+	--note: creating a positive slope is OK, which would show more orders per user OVER time, so a positive retention curve
+	DECLARE @OrdersToAddPerDay FLOAT = @TotalOrdersToAdd / @NumDaysRange
+	SELECT @TotalOrdersToAdd AS TotalOrdersToAdd, @NumDaysRange AS NumDaysRange, @OrdersToAddPerDay AS OrdersToAddPerDay
+
+	--           DATEADD(   DAY,
+    --                  RAND(CHECKSUM(NEWID())) * (1 + DATEDIFF(   DAY,
+    --                                                             '01/01/2016',
+    --                                                             '08/31/2025'
+    --                                                         )
+    --                                            ),
+    --                  '01/01/2016'
+    --              ) AS SalesDate
+
 
 
 	--7. create the table for the ORDERS
@@ -466,14 +503,15 @@ BEGIN
 		SELECT TOP(@FKOrders_TotalUsersRowCnt) ROW_NUMBER() OVER (ORDER BY NEWID()),
 		                                       subq.user_id 
 		FROM @tempFKOrders_UserIdTable subq
-		--todo:  confirm dont have to do a cross apply since the userIdTable has more records then the totalUsers required
+		--we dont have to do a cross apply / SELF join 
+		--since the number of rows in tempFKOrders_userIdTable > FKOrders_TotalUserRowCNT
 		--CROSS APPLY (SELECT TOP(@FKOrders_TotalUsersRowCnt / (SELECT COUNT(*) + 1 FROM @tempFKOrders_UserIdTable)) 
 		--             user_id FROM @tempFKOrders_UserIdTable) subq2
 	SELECT COUNT(*) AS fkOrdersUserIdTableCnt FROM @FKOrders_UserIdTable
 	SELECT TOP(1000) * FROM @FKOrders_UserIdTable ORDER BY id
 
 	--1 to 1 relation, for every one order there would have to be only one items records containing the items for that order
-	--todo:  simpler case is only 1 item in every order_id, but I think it realistically be 2-7 items
+	--todo:  simpler case is only 1 item in every order_id, but I think it realistically should be 2-7 items
 	DECLARE @FKOrders_ItemsInOrderTotalRowCnt INT = (SELECT COUNT(*) FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER)
 	SELECT @FKOrders_ItemsInOrderTotalRowCnt
 	DECLARE @FKOrders_ItemsInOrderIdTable TABLE(id INT, items_in_order_id INT)
@@ -484,6 +522,8 @@ BEGIN
 		FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER
 	SELECT COUNT(*) AS fkOrdersItemsInOrderIdTableCnt FROM @FKOrders_ItemsInOrderIdTable
 	SELECT TOP(1000) * FROM @FKOrders_ItemsInOrderIdTable ORDER BY items_in_order_id
+
+	
 
 	SET @BatchRowSize = @FKOrders_ItemsInOrderTotalRowCnt
 	SET @TotalLoops = 1
@@ -547,25 +587,24 @@ BEGIN
 
 		SET @TotalLoopsIdx = @TotalLoopsIdx + 1
 	END
-	--special case, put ceiling above 50 for all discount_percent
-	UPDATE RESELLERS_2ND_HAND_STUFF_ORDERS  SET discount_percent = 50 
+	--special case, put ceiling at 50 for all discount_percent
+	UPDATE RESELLERS_2ND_HAND_STUFF_ORDERS SET discount_percent = 50 
 	WHERE discount_percent > 50
 	
-	SELECT * FROM RESELLERS_2ND_HAND_STUFF_ORDERS order by items_in_order_id  -- WHERE id>500000 order by id
+	SELECT * FROM RESELLERS_2ND_HAND_STUFF_ORDERS order by items_in_order_id
 	SELECT COUNT(*) AS ordersCnt FROM RESELLERS_2ND_HAND_STUFF_ORDERS 
 
-	--we have to go back and update the order_id in the ItemsInOrder table
+	--now that orders table creation completed, we have to go back and update the order_id in the ItemsInOrder table
 	DECLARE @tempFKItemsInOrder_OrderIdTable TABLE (order_id INT, items_in_order_id INT)
 	DELETE FROM @tempFKItemsInOrder_OrderIdTable
 	INSERT INTO @tempFKItemsInOrder_OrderIdTable(order_id, items_in_order_id)
 		SELECT id AS order_id, items_in_order_id AS items_in_order_id FROM RESELLERS_2ND_HAND_STUFF_ORDERS
-	SELECT * FROM @tempFKItemsInOrder_OrderIdTable ORDER BY items_in_order_id
-	SELECT COUNT(*) FROM @tempFKItemsInOrder_OrderIdTable
+	--SELECT * FROM @tempFKItemsInOrder_OrderIdTable ORDER BY items_in_order_id
+	--SELECT COUNT(*) FROM @tempFKItemsInOrder_OrderIdTable
+	--SELECT * FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER ORDER BY id
+	--SELECT * FROM @tempFKItemsInOrder_OrderIdTable ORDER BY items_in_order_id
 
-	SELECT * FROM RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER ORDER BY id
-	SELECT * FROM @tempFKItemsInOrder_OrderIdTable ORDER BY items_in_order_id
-
-	--go back to ITEMS_IN_ORDER table to update the order_id in it
+	--now we have the mapping, go back to ITEMS_IN_ORDER table to update the order_id in it
 	MERGE INTO RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER destT
 	USING @tempFKItemsInOrder_OrderIdTable sourceT
 	ON destT.id = sourceT.items_in_order_id

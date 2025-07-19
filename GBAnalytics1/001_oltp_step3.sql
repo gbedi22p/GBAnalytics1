@@ -88,7 +88,8 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER
 	order_id INT,  --note:  this ID is not updated until the order is created first, maybe remove this..?
 	count TINYINT,
 	pickup_status BIT,
-	price FLOAT, --USE 2 digit float < 20
+	item_cost FLOAT, --use 2 digit float < 20
+	item_price FLOAT, --USE 2 digit float < 20
 	item_id INT,
 	resellers_id INT
 )
