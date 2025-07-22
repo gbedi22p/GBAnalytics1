@@ -85,7 +85,7 @@ DROP TABLE IF EXISTS RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER
 CREATE TABLE RESELLERS_2ND_HAND_STUFF_ITEMS_IN_ORDER
 (
 	id INT UNIQUE,
-	order_id INT,  --note:  this ID is not updated until the order is created first, maybe remove this..?
+	order_id INT,
 	count TINYINT,
 	pickup_status BIT,
 	item_cost FLOAT, --use 2 digit float < 20
