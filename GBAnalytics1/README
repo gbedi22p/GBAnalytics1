@@ -76,3 +76,32 @@ Planned BI Metrics AND also to go back to the original OLTP data and shape the d
 
 GB github profile:
 https://tinyurl.com/bdfepup3
+
+
+7/22/25
+-do i need to memorize a bunch of new DAX formulas or can I use the "quick measure" feature in power BI
+-ran into issue with DATE column needing to have unique value..is that an issue only with quick measure or any measure
+-parameters:  basic numeric parameter is just a range up and down.  how to use fields like date or categories etc
+-dashboard:  how to create more
+-calculated fields:  how to do this more
+-course:  is there a cheap course that i need to purchase perhaps udemy etc?
+
+Issue trying to create custom calendar date formats
+Dim Calendar = 
+ADDCOLUMNS(
+    CALENDAR(DATE(2023,1,1), DATE(2025,12,31)), 
+    "Year", YEAR([Date]), 
+    "Month Number", MONTH([Date]), 
+    "Month Name", FORMAT([Date], "MMMM"),
+    "Month Short", FORMAT([Date], "mmm"),
+    "Day of Week Number", WEEKDAY([Date], 2), -- 2 for Monday-Sunday, 1-7
+    "Day of Week Name", FORMAT([Date], "DDDD"), 
+    "Quarter", "Q" & QUARTER([Date]),
+    "Year Quarter", FORMAT([Date], "YYYY") & "/Q" & QUARTER([Date]),
+    "Month Year", FORMAT([Date], "MMM YYYY")
+)
+Got error:  this expression refers to multiple columns.  multiple columns cannot be converted to a scalar value
+-my issue was that i was not modifying the original column, i was adding a new column
+-once i corrected that and created the relationship to the sales_month then I was able to then do at least summary of cost, profit, and created calculated column
+to do:  look into understand more clearly difference between calculated column AND a measure
+
