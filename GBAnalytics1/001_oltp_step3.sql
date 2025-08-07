@@ -42,6 +42,7 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_ITEMS
 	updated_at DATETIME
 )
 
+
 DROP TABLE IF EXISTS RESELLERS_2ND_HAND_STUFF_ITEMSECTIONS
 CREATE TABLE RESELLERS_2ND_HAND_STUFF_ITEMSECTIONS
 (
@@ -175,6 +176,7 @@ CREATE TABLE RESELLERS_2ND_HAND_STUFF_USERS
 	role NVARCHAR(50),
 	salt TINYINT,
 	updated_at DATETIME,
+	--todo:  consider adding in last_login_time DATETIME to help with analytics:  DAU, WAU, etc
 	--used_coupons no support for arrays
 )
 

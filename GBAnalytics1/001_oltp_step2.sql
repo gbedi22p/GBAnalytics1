@@ -275,14 +275,6 @@ BEGIN
 	SELECT COUNT(*) AS Ints3Cnt FROM ##TEMP_ROWSET_INTS_3_DIGITS
 	SELECT * FROM ##TEMP_ROWSET_INTS_3_DIGITS ORDER BY ID
 
-	/*DECLARE @loopCntTable TABLE(loopIdx INT, loopRowsCntStart INT, loopRowsCntEnd INT)
-	DECLARE @tempIntTable TABLE(id INT, val INT)
-	DECLARE @BatchRowSize INT = 1000000
-	DECLARE @ColCnt INT = 0
-	DECLARE @TotalColCnt INT = 0
-	DECLARE @LoopIdx INT = 0
-	DECLARE @LoopCnt INT = 0
-	DECLARE @TotalLoopCnt INT = 0*/
 	--create a temp table variable in order to reorder the IDs
 	DELETE FROM @tempIntTable
 	INSERT INTO @tempIntTable(id, val)
@@ -643,7 +635,7 @@ END
 
 
 
---3.  finally execute these statemetns always as precondition to the stored procedure below as its needed by the dynamic sql usage
+--3.  finally execute these statements always as precondition to the stored procedure below as its needed by the dynamic sql usage
 DROP TABLE IF EXISTS ##TEMP_ROWSET_ALL_UNIQUE_INTS_STEP1
 CREATE TABLE ##TEMP_ROWSET_ALL_UNIQUE_INTS_STEP1
 (
