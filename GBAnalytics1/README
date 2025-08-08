@@ -20,88 +20,11 @@ Running this file, takes the global ROWSET temp variables and stores them into t
 001_olap_step1.sql
 Running this file, creates the OLAP data which can be used by reporting tools, in this case we use Power BI
 
-
 See PowerBI/PowerBI_Resellers_01.pbix
-A initial version of this PDF version of this file is avaible in the PowerBI folder:  PowerBI_Resellers_01.pdf
-
-Next Steps will be to create a dashboard with ALL of the following
-Planned BI Metrics AND also to go back to the original OLTP data and shape the data so that sensible retention curves could be created.
-1.  Total Sales = SUM(Sales[SalesAmount])
-2.  Total Profit = SUM(Sales[Profit])
-3.  Profit Margin % = DIVIDE([Total Profit], [Total Sales], 0)
-4.  Distinct Customers = DISTINCTCOUNT(Sales[CustomerID])
-5.  Avg Sales per Customer = DIVIDE([Total Sales], [Distinct Customers], 0)
-6.  Total Orders = COUNT(Sales[OrderID])
-7.  Average Order Value = DIVIDE([Total Sales], [Total Orders], 0)
-8.  Cumulative Sales (Running Total) = CALCULATE([Total Sales], 
-                                                 FILTER(
-                                                     ALLSELECTED(Date[Date]),
-                                                     Date[Date] <= MAX(Date[Date])
-                                                     )
-                                                 )
-9.  Sales Last Year = CALCULATE([Total Sales], 
-                                SAMEPERIODLASTYEAR(Date[Date]))
-10.  YoY Growth % = DIVIDE([Total Sales] - [Sales LY], [Sales LY], 0)
-11.  Sales Previous Month = CALCULATE([Total Sales],
-                                      PREVIOUSMONTH(Date[Date]))
-12.  MoM Growth % = DIVIDE([Total Sales] - [Sales PM], [Sales PM], 0)
-13.  Sales for Selected Category
-     Food Sales = CALCULATE([Total Sales], Sales[Category] = 'Food')
-14.  Top 5 Products by Sales
-     Create a calculated table:
-     TopProducts =
-     TOPN(5, SUMMARIZE(Sales, Sales[ProductName], 'TotalSales', [Total Sales]),
-          [Total Sales], DESC)
-15.  Customer Retention Flag
-     Is Returning Customer =
-     IF(CALCULATE(COUNT(Sales[OrderID]), 
-        ALLEXCEPT(Sales, Sales[CustomerID])) > 1, 1, 0)
-16.  % of Total Sales = DIVIDE([Total Sales], CALCULATE([Total Sales], ALL(Sales)), 0)
-17.  Rank by Revenue
-     Sales Rank = RANKX(ALL(Sales[ProductName]), [Total Sales], , DESC)
-18.  Customer Churn %
-     Churn Rate = DIVIDE([Lost Customers], [Total Customers Last Month], 0)
-19.  Time to First Purchase
-     First Purchase Date = CALCULATE(MIN(Sales[OrderDate]),
-                                     ALLEXCEPT(Sales, Sales[CustomerID])
-                                    ) 
-20.  IF + SWITCH for KPI Color Logic
-     KPI Status =
-     SWITCH(
-            TRUE(),
-            [Total Sales] >= 1000000, 'Green',
-            [Total Sales] >= 5000000, 'Yellow',
-            'Red')
 
 
-GB github profile:
-https://tinyurl.com/bdfepup3
 
-
-7/22/25
--do i need to memorize a bunch of new DAX formulas or can I use the "quick measure" feature in power BI
--ran into issue with DATE column needing to have unique value..is that an issue only with quick measure or any measure
--parameters:  basic numeric parameter is just a range up and down.  how to use fields like date or categories etc
--dashboard:  how to create more
--calculated fields:  how to do this more
--course:  is there a cheap course that i need to purchase perhaps udemy etc?
-
-Issue trying to create custom calendar date formats
-Dim Calendar = 
-ADDCOLUMNS(
-    CALENDAR(DATE(2023,1,1), DATE(2025,12,31)), 
-    "Year", YEAR([Date]), 
-    "Month Number", MONTH([Date]), 
-    "Month Name", FORMAT([Date], "MMMM"),
-    "Month Short", FORMAT([Date], "mmm"),
-    "Day of Week Number", WEEKDAY([Date], 2), -- 2 for Monday-Sunday, 1-7
-    "Day of Week Name", FORMAT([Date], "DDDD"), 
-    "Quarter", "Q" & QUARTER([Date]),
-    "Year Quarter", FORMAT([Date], "YYYY") & "/Q" & QUARTER([Date]),
-    "Month Year", FORMAT([Date], "MMM YYYY")
-)
-Got error:  this expression refers to multiple columns.  multiple columns cannot be converted to a scalar value
--my issue was that i was not modifying the original column, i was adding a new column
--once i corrected that and created the relationship to the sales_month then I was able to then do at least summary of cost, profit, and created calculated column
-to do:  look into understand more clearly difference between calculated column AND a measure
-
+8/7/25
+Finalized OLAP database with Analytics Queries
+Also created results tables for A/B Variant Testing and Retention/Churn/Lapse
+Current version of BI reports available in the following file:  PowerBI/PowerBI_Resellers_01.pdf
