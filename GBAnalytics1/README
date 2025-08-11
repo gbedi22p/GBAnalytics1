@@ -28,3 +28,6 @@ See PowerBI/PowerBI_Resellers_01.pbix
 Finalized OLAP database with Analytics Queries
 Also created results tables for A/B Variant Testing and Retention/Churn/Lapse
 Current version of BI reports available in the following file:  PowerBI/PowerBI_Resellers_01.pdf
+
+8/11/25
+Added PowerBI/PowerBI_Resellers_02 with more advanced things like User parameters and book mark support
